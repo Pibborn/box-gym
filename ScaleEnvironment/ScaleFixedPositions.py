@@ -1,6 +1,7 @@
 import math
 import random
 import gym
+from gym.spaces import Discrete, Box
 
 import numpy as np
 import pygame
@@ -15,6 +16,7 @@ from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape)
 BOXSIZE = 1.0
 DENSITY = 5.0
 FAULTTOLERANCE = 0.001 # for the angle of the bar
+STEP = 0.001
 
 class Scale(Framework):
     """You can use this class as an outline for your tests."""
@@ -36,6 +38,12 @@ class Scale(Framework):
         self.fixedDensityA = 5.0
         self.fixedBoxSize = 1.0
 
+        # -1: move BoxA to the right
+        # 0: don't move any boxes
+        # +1: move BoxB to the right
+        self.action_space = Discrete(3)
+
+        # setting up the objects on the screen
         # The ground
         self.ground = self.world.CreateStaticBody(
             shapes=[Box2D.b2.edgeShape(vertices=[(-40, 0), (40, 0)])]
@@ -46,10 +54,13 @@ class Scale(Framework):
             position=(self.fixedPositionX1, self.y),
             fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)), density=self.fixedDensityA, friction=1.),
         )
+
+        # CHANGE THE DENSITY HERE
+        self.randomDensityB = 5. - random.random()
         self.boxB = self.world.CreateDynamicBody(
             #position=(10, y),
             position=(self.fixedPositionX2, self.y),
-            fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)), density=4.160, friction=1.),
+            fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)), density=self.randomDensityB, friction=1.),
         )
 
         topCoordinate = Vec2(0,6)
@@ -67,6 +78,7 @@ class Scale(Framework):
 
         self.joint = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=self.triangle, anchor=topCoordinate) #, anchor=topCoordinate)
 
+        self.state = [self.boxA, self.boxB, self.bar] #?
 
     def Keyboard(self, key):
         """
@@ -98,7 +110,7 @@ class Scale(Framework):
         return Vec2((x + self.viewOffset.x) / self.viewZoom,
                       ((self.screenSize.y - y + self.viewOffset.y) / self.viewZoom))
 
-    def Step(self, settings):
+    def Step(self, settings, action = None):
         """Called upon every step.
         You should always call
          -> super(Your_Test_Class, self).Step(settings)
@@ -119,6 +131,34 @@ class Scale(Framework):
         #if (abs(self.bar.angle) - 0.390258252620697) > 0.000000001:
         #    print("done")
 
+        # not working
+        # perform action
+        if self.bar.angle < -FAULTTOLERANCE:
+            x = self.boxB.position[0] - STEP
+            y = self.boxB.position[1] - math.tan(-(self.bar.angle)) * STEP
+            self.world.DestroyBody(self.boxB)
+            self.boxB = self.world.CreateDynamicBody(
+                # position=(-10, y),
+                position=(x, y),
+                fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
+                                    density=self.fixedDensityA, friction=1.),
+            )
+            #self.boxB.position[0] -= STEP
+            #self.boxB.position[1] -= math.tan(-(self.bar.angle)) * STEP
+
+        if self.bar.angle > FAULTTOLERANCE:
+            x = self.boxA.position[0] + STEP
+            y = self.boxA.position[1] + math.tan(-(self.bar.angle)) * STEP
+            self.world.DestroyBody(self.boxA)
+            self.boxA = self.world.CreateDynamicBody(
+                # position=(-10, y),
+                position=(x, y),
+                fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
+                                    density=self.fixedDensityA, friction=1.),
+            )
+            #self.boxA.position[0] += STEP
+            #self.boxA.position[1] += math.tan(self.bar.angle) * STEP
+
         state = [self.bar, self.boxA, self.boxB]
         # state = self.bar.angle
 
@@ -133,6 +173,9 @@ class Scale(Framework):
         # placeholder for info
         info = {}
         print(reward, done)
+        if done:
+            print(self.boxA.position[0], self.boxB.position[0])
+            print(self.fixedDensityA, self.randomDensityB)
         return state, reward, done, info
 
 
@@ -151,7 +194,7 @@ class Scale(Framework):
     # TODO: fix it
     def reset(self):
         # reset positons of Box A and Box B
-        print(self.boxA.position)
+        print(self)
         self.boxA.position = (self.fixedPositionX1, self.y)
         self.boxB.position = (self.fixedPositionX2, self.y)
 
