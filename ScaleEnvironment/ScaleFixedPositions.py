@@ -13,7 +13,7 @@ from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape)
 
 # not necessary
 BOXSIZE = 1.0
-WEIGHT = 5.0
+DENSITY = 5.0
 
 class Scale(Framework):
     """You can use this class as an outline for your tests."""
@@ -27,13 +27,13 @@ class Scale(Framework):
         super(Scale, self).__init__()
 
         # Initialize all of the objects
-        y, L, a, b = 16.0, 12.0, 1.0, 2.0
+        self.y, L, a, b = 16.0, 12.0, 1.0, 2.0
 
         # fixed paramters: weight of object A and the positions of both boxes
-        fixedPositionX1 =  - 5
-        fixedPositionX2 = 6
-        fixedWeightA = 5.0
-        fixedBoxSize = 1.0
+        self.fixedPositionX1 = - 5
+        self.fixedPositionX2 = 6
+        self.fixedDensityA = 5.0
+        self.fixedBoxSize = 1.0
 
         # The ground
         self.ground = self.world.CreateStaticBody(
@@ -42,13 +42,13 @@ class Scale(Framework):
 
         self.boxA = self.world.CreateDynamicBody(
             #position=(-10, y),
-            position=(fixedPositionX1, y),
-            fixtures=fixtureDef(shape=polygonShape(box=(fixedBoxSize, fixedBoxSize)), density=fixedWeightA, friction=1.),
+            position=(self.fixedPositionX1, self.y),
+            fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)), density=self.fixedDensityA, friction=1.),
         )
         self.boxB = self.world.CreateDynamicBody(
             #position=(10, y),
-            position=(fixedPositionX2, y),
-            fixtures=fixtureDef(shape=polygonShape(box=(fixedBoxSize, fixedBoxSize)), density=4.160, friction=1.),
+            position=(self.fixedPositionX2, self.y),
+            fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)), density=4.160, friction=1.),
         )
 
         topCoordinate = Vec2(0,6)
@@ -78,7 +78,7 @@ class Scale(Framework):
             newBox = self.world.CreateDynamicBody(
                 position=(pos, 30.0),
                 fixtures=fixtureDef(shape=polygonShape(box=(0.75*BOXSIZE, 0.75*BOXSIZE)),
-                                    density=0.75**3*WEIGHT, friction=1.),
+                                    density=0.75**3*DENSITY, friction=1.),
             )
         if key == Keys.K_b:
             x, y = pygame.mouse.get_pos()
@@ -86,7 +86,7 @@ class Scale(Framework):
             newBox = self.world.CreateDynamicBody(
                 position=(pos, 30.0),
                 fixtures=fixtureDef(shape=polygonShape(box=(BOXSIZE, BOXSIZE)),
-                                    density=0.75**3*WEIGHT, friction=1.),
+                                    density=0.75**3*DENSITY, friction=1.),
             )
 
 
@@ -115,20 +115,11 @@ class Scale(Framework):
         # Placed after the physics step, it will draw on top of physics objects
         self.Print("*** Base your own testbeds on me! ***")
 
-        """delta_x = 0.01
-        delta_y =  1
-
-        if self.bar.angle > 0:
-            self.boxA.position.x += delta_x
-            self.boxA.position.y -= delta_y
-        if self.bar.angle < 0:
-            self.boxA.position.x -= delta_x"""
-
         #if (abs(self.bar.angle) - 0.390258252620697) > 0.000000001:
         #    print("done")
 
         velocities = [self.bar.linearVelocity, self.boxA.linearVelocity, self.boxB.linearVelocity]
-        #print(all(vel == b2Vec2(0,0) for vel in velocities) and abs(self.bar.angle) < 0.001)
+        print(all(vel == b2Vec2(0,0) for vel in velocities) and abs(self.bar.angle) < 0.001)
 
 
     def ShapeDestroyed(self, shape):
@@ -143,7 +134,24 @@ class Scale(Framework):
         """
         pass
 
+    # TODO: fix it
+    def reset(self):
+        # reset positons of Box A and Box B
+        print(self.boxA.position)
+        self.boxA.position = (self.fixedPositionX1, self.y)
+        self.boxB.position = (self.fixedPositionX2, self.y)
 
+        # rearrange the bar to 0 degree
+        self.bar.angle = 0
+
+        # Reset the reward
+        # TODO
+
+        # Determine a new weight for the Box B (?)
+        #TODO
+
+        # return the observation
+        return self.bar.angle # ?? self.canvas
 
 
 # More functions can be changed to allow for contact monitoring and such.

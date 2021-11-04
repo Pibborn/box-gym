@@ -33,7 +33,7 @@ import Box2D
 from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape)
 
 BOXSIZE = 1.0
-WEIGHT = 5.0
+DENSITY = 5.0
 
 class Scale(Framework):
     """You can use this class as an outline for your tests."""
@@ -57,12 +57,12 @@ class Scale(Framework):
         self.boxA = self.world.CreateDynamicBody(
             #position=(-10, y),
             position=(random.random() * 7 - 12, y),
-            fixtures=fixtureDef(shape=polygonShape(box=(BOXSIZE, BOXSIZE)), density=WEIGHT, friction=1.),
+            fixtures=fixtureDef(shape=polygonShape(box=(BOXSIZE, BOXSIZE)), density=DENSITY, friction=1.),
         )
         self.boxB = self.world.CreateDynamicBody(
             #position=(10, y),
             position=(random.random() * 7 + 5, y),
-            fixtures=fixtureDef(shape=polygonShape(box=(BOXSIZE, BOXSIZE)), density=WEIGHT, friction=1.),
+            fixtures=fixtureDef(shape=polygonShape(box=(BOXSIZE, BOXSIZE)), density=DENSITY, friction=1.),
         )
 
         topCoordinate = Vec2(0,6)
@@ -70,6 +70,8 @@ class Scale(Framework):
             position=(0,0),
             fixtures=fixtureDef(shape=polygonShape(vertices=[(-1, 0), (1, 0), topCoordinate]), density=100)
         )
+
+        # TODO: set triangle green when the scale is leveled, red when the angle is not 0°
 
         self.bar = self.world.CreateDynamicBody(
             position=topCoordinate,
@@ -90,7 +92,7 @@ class Scale(Framework):
             newBox = self.world.CreateDynamicBody(
                 position=(pos, 30.0),
                 fixtures=fixtureDef(shape=polygonShape(box=(0.75*BOXSIZE, 0.75*BOXSIZE)),
-                                    density=0.75**3*WEIGHT, friction=1.),
+                                    density=0.75**3*DENSITY, friction=1.),
             )
         if key == Keys.K_b:
             x, y = pygame.mouse.get_pos()
@@ -98,7 +100,7 @@ class Scale(Framework):
             newBox = self.world.CreateDynamicBody(
                 position=(pos, 30.0),
                 fixtures=fixtureDef(shape=polygonShape(box=(BOXSIZE, BOXSIZE)),
-                                    density=0.75**3*WEIGHT, friction=1.),
+                                    density=0.75**3*DENSITY, friction=1.),
             )
 
 
