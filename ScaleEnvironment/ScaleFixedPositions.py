@@ -1,37 +1,17 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-#
-# C++ version Copyright (c) 2006-2007 Erin Catto http://www.box2d.org
-# Python version Copyright (c) 2010 kne / sirkne at gmail dot com
-#
-# Implemented using the pybox2d SWIG interface for Box2D (pybox2d.googlecode.com)
-#
-# This software is provided 'as-is', without any express or implied
-# warranty.  In no event will the authors be held liable for any damages
-# arising from the use of this software.
-# Permission is granted to anyone to use this software for any purpose,
-# including commercial applications, and to alter it and redistribute it
-# freely, subject to the following restrictions:
-# 1. The origin of this software must not be misrepresented; you must not
-# claim that you wrote the original software. If you use this software
-# in a product, an acknowledgment in the product documentation would be
-# appreciated but is not required.
-# 2. Altered source versions must be plainly marked as such, and must not be
-# misrepresented as being the original software.
-# 3. This notice may not be removed or altered from any source distribution.
 import math
 import random
 import gym
 
 import numpy as np
 import pygame
-from Box2D import b2Color
+from Box2D import b2Vec2, b2Color
 from pyglet.math import Vec2
 
 from ScaleEnvironment.framework import (Framework, Keys, main)
 import Box2D
 from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape)
 
+# not necessary
 BOXSIZE = 1.0
 WEIGHT = 5.0
 
@@ -48,7 +28,13 @@ class Scale(Framework):
 
         # Initialize all of the objects
         y, L, a, b = 16.0, 12.0, 1.0, 2.0
-        self.pressed = 0 #?
+
+        # fixed paramters: weight of object A and the positions of both boxes
+        fixedPositionX1 =  - 5
+        fixedPositionX2 = 6
+        fixedWeightA = 5.0
+        fixedBoxSize = 1.0
+
         # The ground
         self.ground = self.world.CreateStaticBody(
             shapes=[Box2D.b2.edgeShape(vertices=[(-40, 0), (40, 0)])]
@@ -56,20 +42,22 @@ class Scale(Framework):
 
         self.boxA = self.world.CreateDynamicBody(
             #position=(-10, y),
-            position=(random.random() * 7 - 12, y),
-            fixtures=fixtureDef(shape=polygonShape(box=(BOXSIZE, BOXSIZE)), density=WEIGHT, friction=1.),
+            position=(fixedPositionX1, y),
+            fixtures=fixtureDef(shape=polygonShape(box=(fixedBoxSize, fixedBoxSize)), density=fixedWeightA, friction=1.),
         )
         self.boxB = self.world.CreateDynamicBody(
             #position=(10, y),
-            position=(random.random() * 7 + 5, y),
-            fixtures=fixtureDef(shape=polygonShape(box=(BOXSIZE, BOXSIZE)), density=WEIGHT, friction=1.),
+            position=(fixedPositionX2, y),
+            fixtures=fixtureDef(shape=polygonShape(box=(fixedBoxSize, fixedBoxSize)), density=4.160, friction=1.),
         )
 
         topCoordinate = Vec2(0,6)
         self.triangle = self.world.CreateStaticBody(
             position=(0,0),
-            fixtures=fixtureDef(shape=polygonShape(vertices=[(-1, 0), (1, 0), topCoordinate]), density=100)
+            fixtures=fixtureDef(shape=polygonShape(vertices=[(-1, 0), (1, 0), topCoordinate]), density=100),
         )
+
+        #TODO: set triangle green when the scale is leveled, red when the angle is not 0°
 
         self.bar = self.world.CreateDynamicBody(
             position=topCoordinate,
@@ -136,8 +124,12 @@ class Scale(Framework):
         if self.bar.angle < 0:
             self.boxA.position.x -= delta_x"""
 
-        if (abs(self.bar.angle) - 0.390258252620697) > 0.000000001:
-            print("done")
+        #if (abs(self.bar.angle) - 0.390258252620697) > 0.000000001:
+        #    print("done")
+
+        velocities = [self.bar.linearVelocity, self.boxA.linearVelocity, self.boxB.linearVelocity]
+        #print(all(vel == b2Vec2(0,0) for vel in velocities) and abs(self.bar.angle) < 0.001)
+
 
     def ShapeDestroyed(self, shape):
         """
@@ -150,6 +142,7 @@ class Scale(Framework):
         The joint passed in was removed.
         """
         pass
+
 
 
 
