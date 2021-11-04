@@ -14,6 +14,7 @@ from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape)
 # not necessary
 BOXSIZE = 1.0
 DENSITY = 5.0
+FAULTTOLERANCE = 0.001 # for the angle of the bar
 
 class Scale(Framework):
     """You can use this class as an outline for your tests."""
@@ -118,8 +119,21 @@ class Scale(Framework):
         #if (abs(self.bar.angle) - 0.390258252620697) > 0.000000001:
         #    print("done")
 
+        state = [self.bar, self.boxA, self.boxB]
+        # state = self.bar.angle
+
+        # Calculate reward (Scale in balance?)
         velocities = [self.bar.linearVelocity, self.boxA.linearVelocity, self.boxB.linearVelocity]
-        print(all(vel == b2Vec2(0,0) for vel in velocities) and abs(self.bar.angle) < 0.001)
+        reward = 1 if (abs(self.bar.angle) < FAULTTOLERANCE) else 0
+
+        # no movement and in balance --> done
+        done = True if (all(vel == b2Vec2(0, 0) for vel in velocities) and abs(self.bar.angle) < FAULTTOLERANCE) else False
+        # done = True if (all(vel == b2Vec2(0, 0) for vel in velocities)) else False
+
+        # placeholder for info
+        info = {}
+        print(reward, done)
+        return state, reward, done, info
 
 
     def ShapeDestroyed(self, shape):

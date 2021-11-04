@@ -25,7 +25,7 @@ import gym
 
 import numpy as np
 import pygame
-from Box2D import b2Color
+from Box2D import b2Color, b2Vec2
 from pyglet.math import Vec2
 
 from ScaleEnvironment.framework import (Framework, Keys, main)
@@ -34,6 +34,7 @@ from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape)
 
 BOXSIZE = 1.0
 DENSITY = 5.0
+FAULTTOLERANCE = 0.001 # for the angle of the bar
 
 class Scale(Framework):
     """You can use this class as an outline for your tests."""
@@ -129,17 +130,24 @@ class Scale(Framework):
         # Placed after the physics step, it will draw on top of physics objects
         self.Print("*** Base your own testbeds on me! ***")
 
-        """delta_x = 0.01
-        delta_y =  1
+        state = [self.bar, self.boxA, self.boxB]
+        # state = self.bar.angle
 
-        if self.bar.angle > 0:
-            self.boxA.position.x += delta_x
-            self.boxA.position.y -= delta_y
-        if self.bar.angle < 0:
-            self.boxA.position.x -= delta_x"""
+        # Calculate reward (Scale in balance?)
+        velocities = [self.bar.linearVelocity, self.boxA.linearVelocity, self.boxB.linearVelocity]
+        reward = 1 if (abs(self.bar.angle) < FAULTTOLERANCE) else 0
+
+        # no movement and in balance --> done
+        done = True if (all(vel == b2Vec2(0, 0) for vel in velocities) and abs(self.bar.angle) < FAULTTOLERANCE) else False
+        # done = True if (all(vel == b2Vec2(0, 0) for vel in velocities)) else False
+
+        # placeholder for info
+        info = {}
 
         if (abs(self.bar.angle) - 0.390258252620697) > 0.000000001:
             print("done")
+
+        return state, reward, done, info
 
     def ShapeDestroyed(self, shape):
         """
