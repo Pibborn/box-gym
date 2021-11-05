@@ -49,6 +49,8 @@ class Scale(Framework):
         self.counter = 0
         self.episode = 0
 
+        print(f"Episode {self.episode + 1}")
+
         # fixed paramters: weight of object A and the positions of both boxes
         self.fixedPositionX1 = - 5
         self.fixedPositionX2 = 6
@@ -77,7 +79,7 @@ class Scale(Framework):
                                 density=self.randomDensityA, friction=1.),
         )
 
-        # CHANGE THE DENSITY HERE
+        # create Box B
         self.randomPositionB = 4. + 2 * random.random()
         self.randomDensityB = 4. + 2 * random.random()
         self.boxB = self.world.CreateDynamicBody(
@@ -147,21 +149,29 @@ class Scale(Framework):
 
         # do stuff
         #self.description = f"{float(self.boxA.position.x)},{float(self.boxA.position.y)})"
-        self.description = f"{self.joint.angle * 180/math.pi}°"
+        self.description = f"Iteration {self.episode + 1}, Angle: {self.joint.angle * 180/math.pi}°"
 
         # Placed after the physics step, it will draw on top of physics objects
-        self.Print("*** Base your own testbeds on me! ***")
+        #self.Print("*** Base your own testbeds on me! ***")
+        if (abs(self.bar.angle) > 0.39
+                or self.boxA.position[0] > 0
+                or self.boxB.position[0] < 0):
+            self.counter = 0
+            self.reset()
+
 
         def boxesOnScale():
             # TODO: fix
             """Utility function to check if both boxes are still on the scale"""
             val = len(self.boxA.contacts) >= 1 and len(self.boxB.contacts) >= 1 and len(self.bar.contacts) == 2
+            """if len(self.boxA.contacts) > 0:
+                print(self.boxA.contacts[0].contact)"""
             return val
-
+        print(self.boxA.mass, self.boxB.mass)
         # not working
         # perform action if and only if both boxes are still on the scale
         if boxesOnScale():
-            if self.bar.angle < -FAULTTOLERANCE:
+            if self.bar.angle < -FAULTTOLERANCE and boxesOnScale():
                 x = self.boxB.position[0] - STEPSIZE
                 y = self.boxB.position[1] - math.tan(-(self.bar.angle)) * STEPSIZE
                 self.world.DestroyBody(self.boxB)
@@ -169,10 +179,10 @@ class Scale(Framework):
                     # position=(-10, y),
                     position=(x, y),
                     fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
-                                        density=self.fixedDensityA, friction=1.),
-                )
+                                        density=self.randomDensityB, friction=1.),
 
-            if self.bar.angle > FAULTTOLERANCE:
+                )
+            if self.bar.angle > FAULTTOLERANCE and boxesOnScale():
                 x = self.boxA.position[0] + STEPSIZE
                 y = self.boxA.position[1] + math.tan(-(self.bar.angle)) * STEPSIZE
                 self.world.DestroyBody(self.boxA)
@@ -180,16 +190,18 @@ class Scale(Framework):
                     # position=(-10, y),
                     position=(x, y),
                     fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
-                                        density=self.fixedDensityA, friction=1.),
+                                        density=self.randomDensityA, friction=1.),
+                                        #density=self.fixedDensityA, friction=1.),
                 )
             else:
                 # TODO: scale is horizontal --> restart with new random weights
-                if self.counter > 200:
+                if self.counter > 200: # wait to see if it stays on balance
                     self.counter = 0
                     self.episode += 1
+                    print(f"Episode {self.episode + 1}")
                     if self.episode < EPISODES:
                         worksheet.write(self.episode, 0, self.boxA.position[0])
-                        worksheet.write(self.episode, 1, self.fixedDensityA)
+                        worksheet.write(self.episode, 1, self.randomDensityA)
                         worksheet.write(self.episode, 2, self.boxB.position[0])
                         worksheet.write(self.episode, 3, self.randomDensityB)
                         worksheet.write(self.episode, 4, self.bar.angle)
@@ -217,7 +229,7 @@ class Scale(Framework):
         info = {}
         if done:
             print(self.boxA.position[0], self.boxB.position[0])
-            print(self.fixedDensityA, self.randomDensityB)
+            print(self.randomDensityA, self.randomDensityB)
         return state, reward, done, info
 
 
@@ -255,6 +267,8 @@ class Scale(Framework):
             fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
                                 density=self.randomDensityB, friction=1.),
         )
+
+        #TODO: function for movement (paramters: box and distance/direction)
 
         # rearrange the bar to 0 degree
         self.bar.angle = 0
