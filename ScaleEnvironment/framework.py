@@ -535,7 +535,7 @@ try:
     Framework = getattr(framework_module,
                         '%sFramework' % fwSettings.backend.capitalize())
 except Exception as ex:
-    print(fwSettings.backend)
+    #print(fwSettings.backend)
     print('Unable to import the back-end %s: %s' % (fwSettings.backend, ex))
     print('Attempting to fall back on the pygame back-end.')
 

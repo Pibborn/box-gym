@@ -3,6 +3,8 @@ import random
 import gym
 from gym.spaces import Discrete, Box
 
+import xlsxwriter
+
 import numpy as np
 import pygame
 from Box2D import b2Vec2, b2Color
@@ -15,8 +17,21 @@ from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape)
 # not necessary
 BOXSIZE = 1.0
 DENSITY = 5.0
-FAULTTOLERANCE = 0.001 # for the angle of the bar
-STEP = 0.001
+
+FAULTTOLERANCE = 0.0001 # for the angle of the bar
+STEPSIZE = 0.001
+
+EPISODES = 8 # number of documentations to be documented
+
+workbook = xlsxwriter.Workbook('observations.xlsx')
+
+worksheet = workbook.add_worksheet("random mass(es)")
+
+worksheet.write(0, 0, "BoxA Coordinate")
+worksheet.write(0, 1, "BoxA Density")
+worksheet.write(0, 2, "BoxB Coordinate")
+worksheet.write(0, 3, "BoxB Density")
+worksheet.write(0, 4, "Bar Angle")
 
 class Scale(Framework):
     """You can use this class as an outline for your tests."""
@@ -31,6 +46,8 @@ class Scale(Framework):
 
         # Initialize all of the objects
         self.y, L, a, b = 16.0, 12.0, 1.0, 2.0
+        self.counter = 0
+        self.episode = 0
 
         # fixed paramters: weight of object A and the positions of both boxes
         self.fixedPositionX1 = - 5
@@ -49,18 +66,25 @@ class Scale(Framework):
             shapes=[Box2D.b2.edgeShape(vertices=[(-40, 0), (40, 0)])]
         )
 
+        # create Box A
+        self.randomPositionA = -4. - 2 * random.random() # between -4 and -6
+        self.randomDensityA = 4. + 2 * random.random() # between 4 and 6
         self.boxA = self.world.CreateDynamicBody(
-            #position=(-10, y),
-            position=(self.fixedPositionX1, self.y),
-            fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)), density=self.fixedDensityA, friction=1.),
+            #position=(self.fixedPositionX1, self.y),
+            #fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)), density=self.fixedDensityA, friction=1.),
+            position=(self.randomPositionA, self.y),
+            fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
+                                density=self.randomDensityA, friction=1.),
         )
 
         # CHANGE THE DENSITY HERE
-        self.randomDensityB = 5. - random.random()
+        self.randomPositionB = 4. + 2 * random.random()
+        self.randomDensityB = 4. + 2 * random.random()
         self.boxB = self.world.CreateDynamicBody(
-            #position=(10, y),
-            position=(self.fixedPositionX2, self.y),
-            fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)), density=self.randomDensityB, friction=1.),
+            #position=(self.fixedPositionX2, self.y),
+            position=(self.randomPositionB, self.y),
+            fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
+                                density=self.randomDensityB, friction=1.),
         )
 
         topCoordinate = Vec2(0,6)
@@ -128,36 +152,55 @@ class Scale(Framework):
         # Placed after the physics step, it will draw on top of physics objects
         self.Print("*** Base your own testbeds on me! ***")
 
-        #if (abs(self.bar.angle) - 0.390258252620697) > 0.000000001:
-        #    print("done")
+        def boxesOnScale():
+            # TODO: fix
+            """Utility function to check if both boxes are still on the scale"""
+            val = len(self.boxA.contacts) >= 1 and len(self.boxB.contacts) >= 1 and len(self.bar.contacts) == 2
+            return val
 
         # not working
-        # perform action
-        if self.bar.angle < -FAULTTOLERANCE:
-            x = self.boxB.position[0] - STEP
-            y = self.boxB.position[1] - math.tan(-(self.bar.angle)) * STEP
-            self.world.DestroyBody(self.boxB)
-            self.boxB = self.world.CreateDynamicBody(
-                # position=(-10, y),
-                position=(x, y),
-                fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
-                                    density=self.fixedDensityA, friction=1.),
-            )
-            #self.boxB.position[0] -= STEP
-            #self.boxB.position[1] -= math.tan(-(self.bar.angle)) * STEP
+        # perform action if and only if both boxes are still on the scale
+        if boxesOnScale():
+            if self.bar.angle < -FAULTTOLERANCE:
+                x = self.boxB.position[0] - STEPSIZE
+                y = self.boxB.position[1] - math.tan(-(self.bar.angle)) * STEPSIZE
+                self.world.DestroyBody(self.boxB)
+                self.boxB = self.world.CreateDynamicBody(
+                    # position=(-10, y),
+                    position=(x, y),
+                    fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
+                                        density=self.fixedDensityA, friction=1.),
+                )
 
-        if self.bar.angle > FAULTTOLERANCE:
-            x = self.boxA.position[0] + STEP
-            y = self.boxA.position[1] + math.tan(-(self.bar.angle)) * STEP
-            self.world.DestroyBody(self.boxA)
-            self.boxA = self.world.CreateDynamicBody(
-                # position=(-10, y),
-                position=(x, y),
-                fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
-                                    density=self.fixedDensityA, friction=1.),
-            )
-            #self.boxA.position[0] += STEP
-            #self.boxA.position[1] += math.tan(self.bar.angle) * STEP
+            if self.bar.angle > FAULTTOLERANCE:
+                x = self.boxA.position[0] + STEPSIZE
+                y = self.boxA.position[1] + math.tan(-(self.bar.angle)) * STEPSIZE
+                self.world.DestroyBody(self.boxA)
+                self.boxA = self.world.CreateDynamicBody(
+                    # position=(-10, y),
+                    position=(x, y),
+                    fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
+                                        density=self.fixedDensityA, friction=1.),
+                )
+            else:
+                # TODO: scale is horizontal --> restart with new random weights
+                if self.counter > 200:
+                    self.counter = 0
+                    self.episode += 1
+                    if self.episode < EPISODES:
+                        worksheet.write(self.episode, 0, self.boxA.position[0])
+                        worksheet.write(self.episode, 1, self.fixedDensityA)
+                        worksheet.write(self.episode, 2, self.boxB.position[0])
+                        worksheet.write(self.episode, 3, self.randomDensityB)
+                        worksheet.write(self.episode, 4, self.bar.angle)
+                        self.reset()
+                    if self.episode == EPISODES:
+                        workbook.close()
+                    else:
+                        self.reset()
+                else:
+                    self.counter += 1
+                pass
 
         state = [self.bar, self.boxA, self.boxB]
         # state = self.bar.angle
@@ -172,7 +215,6 @@ class Scale(Framework):
 
         # placeholder for info
         info = {}
-        print(reward, done)
         if done:
             print(self.boxA.position[0], self.boxB.position[0])
             print(self.fixedDensityA, self.randomDensityB)
@@ -194,9 +236,25 @@ class Scale(Framework):
     # TODO: fix it
     def reset(self):
         # reset positons of Box A and Box B
-        print(self)
-        self.boxA.position = (self.fixedPositionX1, self.y)
-        self.boxB.position = (self.fixedPositionX2, self.y)
+        # self.boxA.position = (self.fixedPositionX1, self.y)
+        self.world.DestroyBody(self.boxA)
+        self.world.DestroyBody(self.boxB)
+
+        self.randomPositionA = -4. - 2 * random.random()
+        self.randomDensityA = 4. + 2 * random.random()
+        self.boxA = self.world.CreateDynamicBody(
+            position=(self.randomPositionA, self.y),
+            fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
+                                density=self.randomDensityA, friction=1.),
+        )
+
+        self.randomPositionB = 4. - 2 * random.random()
+        self.randomDensityB = 4. + 2 * random.random()
+        self.boxB = self.world.CreateDynamicBody(
+            position=(self.randomPositionB, self.y),
+            fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
+                                density=self.randomDensityB, friction=1.),
+        )
 
         # rearrange the bar to 0 degree
         self.bar.angle = 0
