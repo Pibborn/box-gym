@@ -18,10 +18,10 @@ from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape)
 BOXSIZE = 1.0
 DENSITY = 5.0
 
-FAULTTOLERANCE = 0.0001 # for the angle of the bar
+FAULTTOLERANCE = 0.0001  # for the angle of the bar
 STEPSIZE = 0.001
 
-EPISODES = 8 # number of documentations to be documented
+EPISODES = 8  # number of documentations to be documented
 
 workbook = xlsxwriter.Workbook('observations.xlsx')
 
@@ -32,6 +32,7 @@ worksheet.write(0, 1, "BoxA Density")
 worksheet.write(0, 2, "BoxB Coordinate")
 worksheet.write(0, 3, "BoxB Density")
 worksheet.write(0, 4, "Bar Angle")
+
 
 class Scale(Framework):
     """You can use this class as an outline for your tests."""
@@ -68,73 +69,99 @@ class Scale(Framework):
             shapes=[Box2D.b2.edgeShape(vertices=[(-40, 0), (40, 0)])]
         )
 
+        self.boxes = []
+
         # create Box A
-        self.randomPositionA = -4. - 2 * random.random() # between -4 and -6
-        self.randomDensityA = 4. + 2 * random.random() # between 4 and 6
-        self.boxA = self.world.CreateDynamicBody(
-            #position=(self.fixedPositionX1, self.y),
-            #fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)), density=self.fixedDensityA, friction=1.),
-            position=(self.randomPositionA, self.y),
-            fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
-                                density=self.randomDensityA, friction=1.),
-        )
+        self.randomPositionA = -4. - 2 * random.random()  # between -4 and -6
+        self.randomDensityA = 4. + 2 * random.random()  # between 4 and 6
+        self.boxA = self.createBox(self.randomPositionA, self.y, self.randomDensityA, self.fixedBoxSize)
 
         # create Box B
         self.randomPositionB = 4. + 2 * random.random()
         self.randomDensityB = 4. + 2 * random.random()
-        self.boxB = self.world.CreateDynamicBody(
-            #position=(self.fixedPositionX2, self.y),
-            position=(self.randomPositionB, self.y),
-            fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
-                                density=self.randomDensityB, friction=1.),
-        )
+        self.boxB = self.createBox(self.randomPositionB, self.y, self.randomDensityB, self.fixedBoxSize)
 
-        topCoordinate = Vec2(0,6)
+        topCoordinate = Vec2(0, 6)
         self.triangle = self.world.CreateStaticBody(
-            position=(0,0),
+            position=(0, 0),
             fixtures=fixtureDef(shape=polygonShape(vertices=[(-1, 0), (1, 0), topCoordinate]), density=100),
         )
 
-        #TODO: set triangle green when the scale is leveled, red when the angle is not 0°
+        # TODO: set triangle green when the scale is leveled, red when the angle is not 0°
 
         self.bar = self.world.CreateDynamicBody(
             position=topCoordinate,
             fixtures=fixtureDef(shape=polygonShape(box=(15, 0.3)), density=1),
         )
 
-        self.joint = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=self.triangle, anchor=topCoordinate) #, anchor=topCoordinate)
+        self.joint = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=self.triangle,
+                                                    anchor=topCoordinate)  # , anchor=topCoordinate)
 
-        self.state = [self.boxA, self.boxB, self.bar] #?
+        self.state = [self.boxA, self.boxB, self.bar]  # ?
+        #self.boxes = [self.boxA, self.boxB]
 
-    def Keyboard(self, key):
+    def Keyboard(self, key):  # todo: delete?
         """
         The key is from Keys.K_*
         (e.g., if key == Keys.K_z: ... )
         """
         if key == Keys.K_s:
             x, y = pygame.mouse.get_pos()
-            pos, _ = self.ConvertScreenToWorld(x, y)
-            newBox = self.world.CreateDynamicBody(
-                position=(pos, 30.0),
-                fixtures=fixtureDef(shape=polygonShape(box=(0.75*BOXSIZE, 0.75*BOXSIZE)),
-                                    density=0.75**3*DENSITY, friction=1.),
-            )
+            pos_x, _ = self.ConvertScreenToWorld(x, y)
+            self.createBox(pos_x, 30.0, 0.75 ** 3 * DENSITY, 0.75 * BOXSIZE)
         if key == Keys.K_b:
             x, y = pygame.mouse.get_pos()
-            pos, _ = self.ConvertScreenToWorld(x, y)
-            newBox = self.world.CreateDynamicBody(
-                position=(pos, 30.0),
-                fixtures=fixtureDef(shape=polygonShape(box=(BOXSIZE, BOXSIZE)),
-                                    density=0.75**3*DENSITY, friction=1.),
-            )
-
+            pos_x, _ = self.ConvertScreenToWorld(x, y)
+            self.createBox(pos_x, 30.0, DENSITY, BOXSIZE)
 
     def ConvertScreenToWorld(self, x, y):
         """
         Returns a b2Vec2 indicating the world coordinates of screen (x,y)
         """
         return Vec2((x + self.viewOffset.x) / self.viewZoom,
-                      ((self.screenSize.y - y + self.viewOffset.y) / self.viewZoom))
+                    ((self.screenSize.y - y + self.viewOffset.y) / self.viewZoom))
+
+    def createBox(self, pos_x, pos_y = None, density = None, boxsize = None):
+        if not pos_y:
+            pos_y = self.y
+        if not density:
+            density = DENSITY
+        if not boxsize:
+            boxsize = self.fixedBoxSize
+        newBox = self.world.CreateDynamicBody(
+            position=(pos_x, pos_y),
+            fixtures=fixtureDef(shape=polygonShape(box=(boxsize, boxsize)),
+                                density=density, friction=1.),
+        )
+        self.boxes.append(newBox)
+        return newBox
+
+
+    def deleteBox(self, box):
+        "Delete a box from the world"
+        if box not in self.boxes:
+            print("Box not found")
+            return
+        pos = self.boxes.index(box)
+        self.boxes.pop(pos)
+        self.world.DestroyBody(box)
+        return
+
+    def moveBox(self, box, deltaX, deltaY):
+        "Move a box in the world along a given vector (deltaX,deltaY)"
+        self.deleteBox(box)
+        x = box.position[0] + deltaX
+        y = box.position[1] + deltaY
+        density = DENSITY
+        boxsize = self.fixedBoxSize
+        #density = box.fixtures.density #???
+        #boxsize = box.fixtures.size #???
+        movedBox = self.createBox(x, y, density, boxsize)
+        return movedBox
+
+    def getBox(self):
+        # todo
+        pass
 
     def Step(self, settings, action = None):
         """Called upon every step.
@@ -148,17 +175,16 @@ class Scale(Framework):
         super(Scale, self).Step(settings)
 
         # do stuff
-        #self.description = f"{float(self.boxA.position.x)},{float(self.boxA.position.y)})"
-        self.description = f"Iteration {self.episode + 1}, Angle: {self.joint.angle * 180/math.pi}°"
+        # self.description = f"{float(self.boxA.position.x)},{float(self.boxA.position.y)})"
+        self.description = f"Iteration {self.episode + 1}, Angle: {self.joint.angle * 180 / math.pi}°"
 
         # Placed after the physics step, it will draw on top of physics objects
-        #self.Print("*** Base your own testbeds on me! ***")
+        # self.Print("*** Base your own testbeds on me! ***")
         if (abs(self.bar.angle) > 0.39
                 or self.boxA.position[0] > 0
                 or self.boxB.position[0] < 0):
             self.counter = 0
             self.reset()
-
 
         def boxesOnScale():
             # TODO: fix
@@ -167,35 +193,22 @@ class Scale(Framework):
             """if len(self.boxA.contacts) > 0:
                 print(self.boxA.contacts[0].contact)"""
             return val
+
         print(self.boxA.mass, self.boxB.mass)
         # not working
         # perform action if and only if both boxes are still on the scale
         if boxesOnScale():
             if self.bar.angle < -FAULTTOLERANCE and boxesOnScale():
-                x = self.boxB.position[0] - STEPSIZE
-                y = self.boxB.position[1] - math.tan(-(self.bar.angle)) * STEPSIZE
-                self.world.DestroyBody(self.boxB)
-                self.boxB = self.world.CreateDynamicBody(
-                    # position=(-10, y),
-                    position=(x, y),
-                    fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
-                                        density=self.randomDensityB, friction=1.),
-
-                )
+                deltaX = - STEPSIZE
+                deltaY = - math.tan(-self.bar.angle) * STEPSIZE
+                self.moveBox(self.boxB, deltaX, deltaY)
             if self.bar.angle > FAULTTOLERANCE and boxesOnScale():
-                x = self.boxA.position[0] + STEPSIZE
-                y = self.boxA.position[1] + math.tan(-(self.bar.angle)) * STEPSIZE
-                self.world.DestroyBody(self.boxA)
-                self.boxA = self.world.CreateDynamicBody(
-                    # position=(-10, y),
-                    position=(x, y),
-                    fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
-                                        density=self.randomDensityA, friction=1.),
-                                        #density=self.fixedDensityA, friction=1.),
-                )
+                deltaX = STEPSIZE
+                deltaY = math.tan(-self.bar.angle) * STEPSIZE
+                self.moveBox(self.boxB, deltaX, deltaY)
             else:
                 # TODO: scale is horizontal --> restart with new random weights
-                if self.counter > 200: # wait to see if it stays on balance
+                if self.counter > 200:  # wait to see if it stays on balance
                     self.counter = 0
                     self.episode += 1
                     print(f"Episode {self.episode + 1}")
@@ -222,7 +235,8 @@ class Scale(Framework):
         reward = 1 if (abs(self.bar.angle) < FAULTTOLERANCE) else 0
 
         # no movement and in balance --> done
-        done = True if (all(vel == b2Vec2(0, 0) for vel in velocities) and abs(self.bar.angle) < FAULTTOLERANCE) else False
+        done = True if (
+                all(vel == b2Vec2(0, 0) for vel in velocities) and abs(self.bar.angle) < FAULTTOLERANCE) else False
         # done = True if (all(vel == b2Vec2(0, 0) for vel in velocities)) else False
 
         # placeholder for info
@@ -231,7 +245,6 @@ class Scale(Framework):
             print(self.boxA.position[0], self.boxB.position[0])
             print(self.randomDensityA, self.randomDensityB)
         return state, reward, done, info
-
 
     def ShapeDestroyed(self, shape):
         """
@@ -249,26 +262,22 @@ class Scale(Framework):
     def reset(self):
         # reset positons of Box A and Box B
         # self.boxA.position = (self.fixedPositionX1, self.y)
-        self.world.DestroyBody(self.boxA)
-        self.world.DestroyBody(self.boxB)
+        self.deleteBox(self.boxA)
+        self.deleteBox(self.boxB)
+        #self.world.DestroyBody(self.boxA)
+        #self.world.DestroyBody(self.boxB)
 
         self.randomPositionA = -4. - 2 * random.random()
         self.randomDensityA = 4. + 2 * random.random()
-        self.boxA = self.world.CreateDynamicBody(
-            position=(self.randomPositionA, self.y),
-            fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
-                                density=self.randomDensityA, friction=1.),
-        )
+        self.boxA = self.createBox(self.randomPositionA, self.y, self.randomDensityA, self.fixedBoxSize)
 
         self.randomPositionB = 4. - 2 * random.random()
         self.randomDensityB = 4. + 2 * random.random()
-        self.boxB = self.world.CreateDynamicBody(
-            position=(self.randomPositionB, self.y),
-            fixtures=fixtureDef(shape=polygonShape(box=(self.fixedBoxSize, self.fixedBoxSize)),
-                                density=self.randomDensityB, friction=1.),
-        )
+        self.boxB = self.createBox(self.randomPositionB, self.y, self.randomDensityB, self.fixedBoxSize)
 
-        #TODO: function for movement (paramters: box and distance/direction)
+        self.boxes = [self.boxA, self.boxB]
+
+        # TODO: function for movement (paramters: box and distance/direction)
 
         # rearrange the bar to 0 degree
         self.bar.angle = 0
@@ -277,14 +286,14 @@ class Scale(Framework):
         # TODO
 
         # Determine a new weight for the Box B (?)
-        #TODO
+        # TODO
 
         # return the observation
-        return self.bar.angle # ?? self.canvas
+        return self.bar.angle  # ?? self.canvas
 
 
 # More functions can be changed to allow for contact monitoring and such.
-    # See the other testbed examples for more information.
+# See the other testbed examples for more information.
 
 if __name__ == "__main__":
     main(Scale)
