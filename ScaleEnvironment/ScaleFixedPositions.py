@@ -7,7 +7,7 @@ import xlsxwriter
 
 import numpy as np
 import pygame
-from Box2D import b2Vec2, b2Color
+from Box2D import b2Vec2, b2Color, b2BodyDef
 from pyglet.math import Vec2
 
 from ScaleEnvironment.framework import (Framework, Keys, main)
@@ -132,12 +132,13 @@ class Scale(Framework):
             position=(pos_x, pos_y),
             fixtures=fixtureDef(shape=polygonShape(box=(boxsize, boxsize)),
                                 density=density, friction=1.),
+            userData=boxsize, # save this because you somehow cannot access fixture data later
         )
         self.boxes.append(newBox)
         return newBox
 
 
-    def deleteBox(self, box):
+    def deleteBox(self, box): # todo: fix, maybe ID for every b2Body object
         "Delete a box from the world"
         if box not in self.boxes:
             print("Box not found")
@@ -147,17 +148,30 @@ class Scale(Framework):
         self.world.DestroyBody(box)
         return
 
+    def deleteAllBoxes(self):
+        """deletes every single box in the world"""
+        for box in self.boxes:
+            try:
+                self.world.DestroyBody(box)
+            except:
+                pass
+        self.boxes = []
+
     def moveBox(self, box, deltaX, deltaY):
         "Move a box in the world along a given vector (deltaX,deltaY)"
         self.deleteBox(box)
         x = box.position[0] + deltaX
         y = box.position[1] + deltaY
-        density = DENSITY
-        boxsize = self.fixedBoxSize
-        #density = box.fixtures.density #???
-        #boxsize = box.fixtures.size #???
+        boxsize = box.userData  #self.fixedBoxSize
+        density = box.mass/(4*boxsize) #DENSITY
         movedBox = self.createBox(x, y, density, boxsize)
         return movedBox
+
+    def moveBox2(self, box, deltaX, deltaY):
+        "Move a box in the world along a given vector (deltaX,deltaY)"
+        box.position[0] += deltaX
+        box.position[1] += deltaY
+        return box
 
     def getBox(self):
         # todo
@@ -194,7 +208,6 @@ class Scale(Framework):
                 print(self.boxA.contacts[0].contact)"""
             return val
 
-        print(self.boxA.mass, self.boxB.mass)
         # not working
         # perform action if and only if both boxes are still on the scale
         if boxesOnScale():
@@ -261,11 +274,11 @@ class Scale(Framework):
     # TODO: fix it
     def reset(self):
         # reset positons of Box A and Box B
-        # self.boxA.position = (self.fixedPositionX1, self.y)
-        self.deleteBox(self.boxA)
-        self.deleteBox(self.boxB)
-        #self.world.DestroyBody(self.boxA)
-        #self.world.DestroyBody(self.boxB)
+        #for box in self.boxes:
+            #print(box.fixtures[0].body)
+        #    self.deleteBox(box)
+
+        self.deleteAllBoxes()
 
         self.randomPositionA = -4. - 2 * random.random()
         self.randomDensityA = 4. + 2 * random.random()
@@ -281,6 +294,7 @@ class Scale(Framework):
 
         # rearrange the bar to 0 degree
         self.bar.angle = 0
+        self.bar.angularVelocity = 0.
 
         # Reset the reward
         # TODO
