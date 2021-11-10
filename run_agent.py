@@ -17,14 +17,19 @@ import torchvision.transforms as T
 import torch.distributions as distributions
 
 from environments.GymEnv import GymEnv
+from ScaleEnvironment.Scale import Scale
 from agents.VanillaGradMLP import VanillaGradMLP
 import argparse
 
 def create_envs(env_str, seed=42):
-    train_env = GymEnv(env_str)
-    train_env = train_env.create()
-    test_env = GymEnv(env_str)
-    test_env = test_env.create()
+    if env_str == 'scale':
+        train_env = Scale()
+        test_env = Scale()
+    else:
+        train_env = GymEnv(env_str)
+        train_env = train_env.create()
+        test_env = GymEnv(env_str)
+        test_env = test_env.create()
     train_env.seed(seed)
     test_env.seed(seed+1)
     return train_env, test_env
