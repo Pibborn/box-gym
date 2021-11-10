@@ -34,7 +34,7 @@ worksheet.write(0, 3, "BoxB Density")
 worksheet.write(0, 4, "Bar Angle")
 
 
-class Scale(Framework):
+class Scale(Framework, gym.Env):
     """You can use this class as an outline for your tests."""
     name = "Scale"  # Name of the class to display
 
@@ -95,10 +95,9 @@ class Scale(Framework):
         )
 
         self.joint = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=self.triangle,
-                                                    anchor=topCoordinate)  # , anchor=topCoordinate)
+                                                    anchor=topCoordinate)
 
-        self.state = [self.boxA, self.boxB, self.bar]  # ?
-        #self.boxes = [self.boxA, self.boxB]
+        self.state = [self.boxA, self.boxB, self.bar]  # positions, densities, sizes, angle
 
     def Keyboard(self, key):  # todo: delete?
         """
@@ -194,6 +193,7 @@ class Scale(Framework):
 
         # Placed after the physics step, it will draw on top of physics objects
         # self.Print("*** Base your own testbeds on me! ***")
+
         if (abs(self.bar.angle) > 0.39
                 or self.boxA.position[0] > 0
                 or self.boxB.position[0] < 0):
@@ -218,7 +218,7 @@ class Scale(Framework):
             if self.bar.angle > FAULTTOLERANCE and boxesOnScale():
                 deltaX = STEPSIZE
                 deltaY = math.tan(-self.bar.angle) * STEPSIZE
-                self.moveBox(self.boxB, deltaX, deltaY)
+                self.moveBox(self.boxA, deltaX, deltaY)
             else:
                 # TODO: scale is horizontal --> restart with new random weights
                 if self.counter > 200:  # wait to see if it stays on balance
