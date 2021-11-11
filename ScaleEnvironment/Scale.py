@@ -21,12 +21,14 @@
 # 3. This notice may not be removed or altered from any source distribution.
 import math
 import random
+from time import time
+
 import gym
 
 import numpy as np
 import pygame
 from Box2D import b2Color, b2Vec2
-from gym.spaces import Discrete
+from gym.spaces import Discrete, Dict, Box
 from pyglet.math import Vec2
 
 from ScaleEnvironment.framework import (Framework, Keys, main)
@@ -60,10 +62,14 @@ class Scale(Framework, gym.Env):
         # fixed paramters: weight of object A and the positions of both boxes
         # ??
 
-        # -1: move BoxA to the right
-        # 0: don't move any boxes
-        # +1: move BoxB to the right
-        self.action_space = Discrete(3)
+        # x: Determines the x-coordinate to place the box
+        # y: y-coordinate of the box
+        # box: 1 --> choose BoxA, 2 --> BoxB
+        self.action_space = Dict({
+            "x": Box(low=-10., high=10., shape=(1,1), dtype=float),
+            "y": Box(low=1., high=10., shape=(1, 1), dtype=float),
+            "box": Discrete(2) # 1: BoxA, 2: BoxB
+        })
 
         # setting up the objects on the screen
         # The ground
@@ -136,7 +142,6 @@ class Scale(Framework, gym.Env):
         self.boxes.append(newBox)
         return newBox
 
-
     def deleteBox(self, box): # todo: fix, maybe ID for every b2Body object
         "Delete a box from the world"
         if box not in self.boxes:
@@ -165,6 +170,91 @@ class Scale(Framework, gym.Env):
         density = box.mass/(4*boxsize) #DENSITY
         movedBox = self.createBox(x, y, density, boxsize)
         return movedBox
+
+    def moveBoxTo(self, box, x, y):
+        "Place a box at a specific position on the field"
+        self.deleteBox(box)
+        boxsize = box.userData  # self.fixedBoxSize
+        density = box.mass / (4 * boxsize)  # DENSITY
+        movedBox = self.createBox(x, y, density, boxsize)
+        return movedBox
+
+    def step(self, action):
+        self.stepCount += 1 #?
+        # Don't do anything if the setting's Hz are <= 0
+        hz = 60.0
+        velocityIterations = 8
+        positionIterations = 3
+
+        if hz > 0.0:
+            timeStep = 1.0 / hz
+        else:
+            timeStep = 0.0
+
+        # Reset the collision points
+        self.points = []
+
+        # Tell Box2D to step
+        t_step = time()
+        self.world.Step(timeStep, velocityIterations,
+                        positionIterations)
+        self.world.ClearForces()
+        t_step = time() - t_step
+
+        # Update the debug draw settings so that the vertices will be properly
+        # converted to screen coordinates
+        t_draw = time()
+
+        # extract informations from action
+        x = action["x"][0,0]
+        y = action["y"][0,0]
+        box = action["box"]
+
+        # do stuff
+        self.description = f"{self.joint.angle * 180 / math.pi}°"
+
+        # Placed after the physics step, it will draw on top of physics objects
+        # self.Print("*** Base your own testbeds on me! ***")
+
+        if (abs(self.bar.angle) > 0.39
+                or self.boxA.position[0] > 0
+                or self.boxB.position[0] < 0):
+            self.reset()
+            return self.state, 0, True, {}
+
+        def boxesOnScale():
+            # TODO: fix
+            """Utility function to check if both boxes are still on the scale"""
+            val = len(self.boxA.contacts) >= 1 and len(self.boxB.contacts) >= 1 and len(self.bar.contacts) == 2
+            return val
+
+        # perform action
+        if box == 1:
+            self.boxA = self.moveBoxTo(self.boxA, x, y)
+        elif box == 2:
+            self.boxB = self.moveBoxTo(self.boxB, x, y)
+
+        state = [self.bar, self.boxA, self.boxB]
+        # Calculate reward (Scale in balance?)
+        velocities = [self.bar.linearVelocity, self.boxA.linearVelocity, self.boxB.linearVelocity]
+        reward = 1 if (abs(self.bar.angle) < FAULTTOLERANCE) else 0
+
+        # no movement and in balance --> done
+        done = True if (
+                    all(vel == b2Vec2(0, 0) for vel in velocities) and abs(self.bar.angle) < FAULTTOLERANCE) else False
+        # done = True if (all(vel == b2Vec2(0, 0) for vel in velocities)) else False
+
+        # placeholder for info
+        info = {}
+
+        if (abs(self.bar.angle) - 0.390258252620697) > 0.000000001:
+            print("done")
+
+        return state, reward, done, info
+        pass
+
+    def close(self):
+        pass
 
     def Step(self, settings, action = None):
         """Called upon every step.
@@ -258,6 +348,16 @@ class Scale(Framework, gym.Env):
         """
         The joint passed in was removed.
         """
+        pass
+
+    def render(self, mode="human"): #todo
+        renderer = self.renderer
+
+        if renderer is not None:
+            renderer.StartDraw()
+
+        self.world.DrawDebugData()
+        print("done")
         pass
 
     # TODO: fix it

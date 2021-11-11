@@ -170,6 +170,7 @@ class FrameworkBase(b2ContactListener):
             # indicates that the C code should transform box2d coords to screen
             # coordinates.
             is_extended = isinstance(renderer, b2DrawExtended)
+            print(self.renderer)
             renderer.flags = dict(drawShapes=settings.drawShapes,
                                   drawJoints=settings.drawJoints,
                                   drawAABBs=settings.drawAABBs,

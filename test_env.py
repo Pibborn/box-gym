@@ -1,5 +1,5 @@
-#from ScaleEnvironment.Scale import Scale
-from ScaleEnvironment.ScaleFixedPositions import Scale
+from ScaleEnvironment.Scale import Scale
+#from ScaleEnvironment.ScaleFixedPositions import Scale
 from ScaleEnvironment.framework import main
 
 if __name__ == '__main__':

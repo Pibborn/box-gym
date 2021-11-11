@@ -1,7 +1,7 @@
 import math
 import random
 import gym
-from gym.spaces import Discrete, Box
+from gym.spaces import Discrete, Box, Dict
 
 import xlsxwriter
 
@@ -58,10 +58,14 @@ class Scale(Framework, gym.Env):
         self.fixedDensityA = 5.0
         self.fixedBoxSize = 1.0
 
-        # -1: move BoxA to the right
-        # 0: don't move any boxes
-        # +1: move BoxB to the right
-        self.action_space = Discrete(3)
+        # x: Determines the x-coordinate to place the box
+        # y: y-coordinate of the box
+        # box: 1 --> choose BoxA, 2 --> BoxB
+        self.action_space = Dict({
+            "x": Box(low=-10., high=10., shape=(1, 1), dtype=np.float32),  # x-coordinate to move the box to
+            "y": Box(low=1., high=10., shape=(1, 1), dtype=np.float32),  # y-coordinate to move the box to
+            "box": Discrete(2)  # 1: BoxA, 2: BoxB
+        })
 
         # setting up the objects on the screen
         # The ground
