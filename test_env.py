@@ -1,7 +1,7 @@
 #from ScaleEnvironment.Scale import Scale
 from time import sleep
 
-from ScaleEnvironment.ExperimentingFile import Scale
+from ScaleEnvironment.Scale import Scale
 from ScaleEnvironment.framework import main
 
 if __name__ == '__main__':
@@ -12,9 +12,8 @@ if __name__ == '__main__':
         observation = env.reset()
         for t in range(100):
             env.render()
-            #print(observation)
             action = env.action_space.sample()
-            #print(action)
+            #action = None
             observation, reward, done, info = env.step(action=action, settings=None) #, display=True)
             if done:
                 print("Episode finished after {} timesteps".format(t + 1))

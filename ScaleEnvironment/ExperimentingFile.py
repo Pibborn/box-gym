@@ -1,5 +1,6 @@
 import math
 import random
+import sys
 from time import time, sleep
 
 import gym
@@ -39,14 +40,11 @@ class Scale(Framework, gym.Env):
         self.y, L, a, b = 16.0, 12.0, 1.0, 2.0
         self.counter = 0
 
-        # fixed parameters: weight of object A and the positions of both boxes
-        # ??
-
         # x: Determines the x-coordinate to place the box
         # y: y-coordinate of the box
         # box: 1 --> choose BoxA, 2 --> BoxB
         self.action_space = Dict({
-            "x": Box(low=-10., high=10., shape=(1, 1), dtype=float),
+            "x": Box(low=-10., high=-1., shape=(1, 1), dtype=float),
             "y": Box(low=1., high=10., shape=(1, 1), dtype=float),
             "box": Discrete(2)  # 1: BoxA, 2: BoxB
         })
@@ -61,11 +59,11 @@ class Scale(Framework, gym.Env):
 
         # create Box A
         randomPositionA = -4. - 2 * random.random()  # between -4 and -6
-        # randomDensityA = 4. + 2 * random.random()  # between 4 and 6
+        randomDensityA = 4. + 2 * random.random()  # between 4 and 6
         self.boxA = self.createBox(randomPositionA, self.y, DENSITY, BOXSIZE)
 
         randomPositionB = 4. + 2 * random.random()
-        # randomDensityB = 4. + 2 * random.random()
+        randomDensityB = 4. + 2 * random.random()
         self.boxB = self.createBox(randomPositionB, self.y, DENSITY, BOXSIZE)
 
         topCoordinate = Vec2(0, 6)
@@ -82,7 +80,7 @@ class Scale(Framework, gym.Env):
         )
 
         self.joint = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=self.triangle,
-                                                    anchor=topCoordinate)  # , anchor=topCoordinate)
+                                                    anchor=topCoordinate)
 
         self.state = [self.boxA, self.boxB, self.bar]  # ?
 
@@ -139,7 +137,7 @@ class Scale(Framework, gym.Env):
         movedBox = self.createBox(x, y, density, boxsize)
         return movedBox
 
-    def step(self, action = None, settings = None):
+    def step(self, action=None, settings=None):
         # Don't do anything if the setting's Hz are <= 0
         if not settings:
             settings = fwSettings
@@ -154,11 +152,7 @@ class Scale(Framework, gym.Env):
         else:
             timeStep = 0.0
 
-        # Reset the collision pointsfrom gym.envs.classic_control import rendering
-        #
-        #         if self.viewer is None:
-        #             self.viewer = rendering.Viewer(VIEWPORT_W, VIEWPORT_H)
-        #             self.viewer.set_bounds(0, VIEWPORT_W / SCALE, 0, VIEWPORT_H / SCALE)
+        # Reset the collision points
         self.points = []
 
         # Tell Box2D to step
@@ -184,12 +178,12 @@ class Scale(Framework, gym.Env):
 
         self.description = f"{self.joint.angle * 180 / math.pi}°"
 
-        # check if test failed --> reward = 0
+        # check if test failed --> reward = -1
         if (abs(self.bar.angle) > 0.39
                 or self.boxA.position[0] > 0
                 or self.boxB.position[0] < 0):
             self.reset()
-            return self.state, 0, True, {}
+            return self.state, -1, True, {}
 
         def boxesOnScale():
             # TODO: fix
@@ -205,11 +199,11 @@ class Scale(Framework, gym.Env):
 
         state = [self.bar, self.boxA, self.boxB]
         # Calculate reward (Scale in balance?)
-        velocities = [self.bar.linearVelocity, self.boxA.linearVelocity, self.boxB.linearVelocity]
         # reward = 1 if (abs(self.bar.angle) < FAULTTOLERANCE) else 0
         reward = (0.390258252620697 - self.bar.angle) / 0.390258252620697
 
         # no movement and in balance --> done
+        velocities = [self.bar.linearVelocity, self.boxA.linearVelocity, self.boxB.linearVelocity]
         done = True if (
                 all(vel == b2Vec2(0, 0) for vel in velocities) and abs(self.bar.angle) < FAULTTOLERANCE) else False
         # done = True if (all(vel == b2Vec2(0, 0) for vel in velocities)) else False
@@ -233,7 +227,6 @@ class Scale(Framework, gym.Env):
         If placed at the beginning, it will cause the actual physics step to happen first.
         If placed at the end, it will cause the physics step to happen after your code.
         """
-        print(settings)
         # super(Scale, self).Step(settings)
         self.stepCount += 1
         # Don't do anything if the setting's Hz are <= 0
@@ -321,7 +314,8 @@ class Scale(Framework, gym.Env):
         return state, reward, done, info
 
     def close(self):
-        pass
+        pygame.quit()
+        sys.exit()
 
     def render(self, mode="human"):  # todo
         from gym.envs.classic_control import rendering

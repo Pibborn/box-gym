@@ -21,19 +21,22 @@
 # 3. This notice may not be removed or altered from any source distribution.
 import math
 import random
+import sys
 from time import time, sleep
-
-import gym
 
 import numpy as np
 import pygame
-from Box2D import b2Color, b2Vec2
+from Box2D import b2Color, b2Vec2, b2DrawExtended
 from gym.spaces import Discrete, Dict, Box
 from pyglet.math import Vec2
 
 from ScaleEnvironment.framework import (Framework, Keys, main)
 import Box2D
 from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape)
+
+from ScaleEnvironment.settings import fwSettings
+
+import gym
 
 BOXSIZE = 1.0
 DENSITY = 5.0
@@ -43,7 +46,7 @@ FAULTTOLERANCE = 0.001  # for the angle of the bar
 STEPSIZE = 0.001
 
 
-class Scale(Framework): #, gym.Env):
+class Scale(Framework, gym.Env):
     """You can use this class as an outline for your tests."""
     name = "Scale"  # Name of the class to display
 
@@ -56,7 +59,7 @@ class Scale(Framework): #, gym.Env):
 
         # Initialize all of the objects
         self.y, L, a, b = 16.0, 12.0, 1.0, 2.0
-        self.counter = 0
+        self.counter = 0  # ?
 
         # fixed parameters: weight of object A and the positions of both boxes
         # ??
@@ -65,10 +68,12 @@ class Scale(Framework): #, gym.Env):
         # y: y-coordinate of the box
         # box: 1 --> choose BoxA, 2 --> BoxB
         self.action_space = Dict({
-            "x": Box(low=-10., high=10., shape=(1,1), dtype=float),
+            "x": Box(low=-10., high=10., shape=(1, 1), dtype=float),
             "y": Box(low=1., high=10., shape=(1, 1), dtype=float),
-            "box": Discrete(2) # 1: BoxA, 2: BoxB
+            "box": Discrete(2)  # 1: BoxA, 2: BoxB
         })
+
+        #self.observation_space =
 
         # setting up the objects on the screen
         # The ground
@@ -80,16 +85,16 @@ class Scale(Framework): #, gym.Env):
 
         # create Box A
         randomPositionA = -4. - 2 * random.random()  # between -4 and -6
-        #randomDensityA = 4. + 2 * random.random()  # between 4 and 6
+        # randomDensityA = 4. + 2 * random.random()  # between 4 and 6
         self.boxA = self.createBox(randomPositionA, self.y, DENSITY, BOXSIZE)
 
         randomPositionB = 4. + 2 * random.random()
-        #randomDensityB = 4. + 2 * random.random()
+        # randomDensityB = 4. + 2 * random.random()
         self.boxB = self.createBox(randomPositionB, self.y, DENSITY, BOXSIZE)
 
-        topCoordinate = Vec2(0,6)
+        topCoordinate = Vec2(0, 6)
         self.triangle = self.world.CreateStaticBody(
-            position=(0,0),
+            position=(0, 0),
             fixtures=fixtureDef(shape=polygonShape(vertices=[(-1, 0), (1, 0), topCoordinate]), density=100)
         )
 
@@ -100,7 +105,7 @@ class Scale(Framework): #, gym.Env):
             fixtures=fixtureDef(shape=polygonShape(box=(15, 0.3)), density=1),
         )
 
-        self.joint = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=self.triangle, anchor=topCoordinate) #, anchor=topCoordinate)
+        self.joint = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=self.triangle, anchor=topCoordinate)
 
         self.state = [self.boxA, self.boxB, self.bar]  # ?
 
@@ -109,25 +114,22 @@ class Scale(Framework): #, gym.Env):
         Returns a b2Vec2 indicating the world coordinates of screen (x,y)
         """
         return Vec2((x + self.viewOffset.x) / self.viewZoom,
-                      ((self.screenSize.y - y + self.viewOffset.y) / self.viewZoom))
+                    ((self.screenSize.y - y + self.viewOffset.y) / self.viewZoom))
 
-    def createBox(self, pos_x, pos_y = None, density = None, boxsize = None):
+    def createBox(self, pos_x, pos_y=None, density=DENSITY, boxsize=BOXSIZE):
         if not pos_y:
             pos_y = self.y
-        if not density:
-            density = DENSITY
-        if not boxsize:
-            boxsize = self.fixedBoxSize
+
         newBox = self.world.CreateDynamicBody(
             position=(pos_x, pos_y),
             fixtures=fixtureDef(shape=polygonShape(box=(boxsize, boxsize)),
                                 density=density, friction=1.),
-            userData=boxsize, # save this because you somehow cannot access fixture data later
+            userData=boxsize,  # save this because you somehow cannot access fixture data later
         )
         self.boxes.append(newBox)
         return newBox
 
-    def deleteBox(self, box): # todo: fix, maybe ID for every b2Body object
+    def deleteBox(self, box):  # todo: fix, maybe ID for every b2Body object
         "Delete a box from the world"
         if box not in self.boxes:
             print("Box not found")
@@ -160,7 +162,7 @@ class Scale(Framework): #, gym.Env):
         movedBox = self.createBox(x, y, density, boxsize)
         return movedBox
 
-    def step(self, action):
+    def step(self, action=None, settings=None):
         # Don't do anything if the setting's Hz are <= 0
         hz = 60.0
         velocityIterations = 8
@@ -171,33 +173,38 @@ class Scale(Framework): #, gym.Env):
         else:
             timeStep = 0.0
 
+        if not settings:
+            settings = fwSettings
+
+        # catch special case that no action was executed
+        if not action:
+            self.world.Step(timeStep, velocityIterations,
+                            positionIterations)
+            self.world.ClearForces()
+            self.render()
+            return [self.bar, self.boxA, self.boxB], 0, False, {}
+
+        # extract information from action
+        x = action["x"][0, 0]
+        y = action["y"][0, 0]
+        box = action["box"]
+
         # Reset the collision points
         self.points = []
 
         # Tell Box2D to step
-        t_step = time()
-        self.world.Step(timeStep, velocityIterations,
+        self.world.Step(timeStep, velocityIterations,  # todo: Step function called after moving the boxes
                         positionIterations)
         self.world.ClearForces()
-        t_step = time() - t_step
-
-        # Update the debug draw settings so that the vertices will be properly
-        # converted to screen coordinates
-        t_draw = time()
-
-        # extract information from action
-        x = action["x"][0,0]
-        y = action["y"][0,0]
-        box = action["box"]
 
         self.description = f"{self.joint.angle * 180 / math.pi}°"
 
-        # check if test failed --> reward = 0
+        # check if test failed --> reward = -1
         if (abs(self.bar.angle) > 0.39
                 or self.boxA.position[0] > 0
                 or self.boxB.position[0] < 0):
             self.reset()
-            return self.state, 0, True, {}
+            return self.state, -1, True, {}
 
         def boxesOnScale():
             # TODO: fix
@@ -213,120 +220,77 @@ class Scale(Framework): #, gym.Env):
 
         state = [self.bar, self.boxA, self.boxB]
         # Calculate reward (Scale in balance?)
-        velocities = [self.bar.linearVelocity, self.boxA.linearVelocity, self.boxB.linearVelocity]
-        if abs(self.bar.angle) < FAULTTOLERANCE:
+        if abs(self.bar.angle) < FAULTTOLERANCE and boxesOnScale():
             reward = 1
         elif not boxesOnScale():
             reward = -1
         else:
             reward = 0
+        # alternatively: reward = (0.390258252620697 - self.bar.angle) / 0.390258252620697
 
         # no movement and in balance --> done
-        done = True if ( #TODO: muss erst bestimmte Zeit abwarten, evtl mit Forces der Boxen arbeiten
-                    all(vel == b2Vec2(0, 0) for vel in velocities) and abs(self.bar.angle) < FAULTTOLERANCE) else False
+        velocities = [self.bar.linearVelocity, self.boxA.linearVelocity, self.boxB.linearVelocity]
+        done = True if (  # TODO: wait a few seconds/look at forces to be 100% sure the scale won't move again
+                all(vel == b2Vec2(0, 0) for vel in velocities) and abs(self.bar.angle) < FAULTTOLERANCE) else False
         # done = True if (all(vel == b2Vec2(0, 0) for vel in velocities)) else False
 
         # placeholder for info
         info = {}
 
-        if (abs(self.bar.angle) - 0.390258252620697) > 0.000000001:
-            print("done")
+        self.render()
 
         return state, reward, done, info
-        pass
 
     def close(self):
-        pass
+        pygame.quit()
+        sys.exit()
 
-    def Step(self, settings, action = None): #todo: delete
-        """Called upon every step.
-        You should always call
-         -> super(Your_Test_Class, self).Step(settings)
-        at the beginning or end of your function.
-
-        If placed at the beginning, it will cause the actual physics step to happen first.
-        If placed at the end, it will cause the physics step to happen after your code.
-        """
-        super(Scale, self).Step(settings)
-
-        # do stuff
-        self.description = f"{self.joint.angle * 180/math.pi}°"
-
-        # Placed after the physics step, it will draw on top of physics objects
-        #self.Print("*** Base your own testbeds on me! ***")
-
-        state = [self.bar, self.boxA, self.boxB]
-        # state = self.bar.angle
-
-        if (abs(self.bar.angle) > 0.39
-                or self.boxA.position[0] > 0
-                or self.boxB.position[0] < 0):
-            self.reset()
-
-        def boxesOnScale():
-            # TODO: fix
-            """Utility function to check if both boxes are still on the scale"""
-            val = len(self.boxA.contacts) >= 1 and len(self.boxB.contacts) >= 1 and len(self.bar.contacts) == 2
-            return val
-
-        # not working
-        # perform action if and only if both boxes are still on the scale
-        if boxesOnScale():
-            if self.bar.angle < -FAULTTOLERANCE and boxesOnScale():
-                deltaX = - STEPSIZE
-                deltaY = - math.tan(-self.bar.angle) * STEPSIZE
-                self.moveBox(self.boxB, deltaX, deltaY)
-            if self.bar.angle > FAULTTOLERANCE and boxesOnScale():
-                deltaX = STEPSIZE
-                deltaY = math.tan(-self.bar.angle) * STEPSIZE
-                self.moveBox(self.boxA, deltaX, deltaY)
-            else:
-                if self.counter > 200:
-                    self.reset()
-                self.counter += 1
-
-        state = [self.bar, self.boxA, self.boxB]
-        # Calculate reward (Scale in balance?)
-        velocities = [self.bar.linearVelocity, self.boxA.linearVelocity, self.boxB.linearVelocity]
-        reward = 1 if (abs(self.bar.angle) < FAULTTOLERANCE) else 0
-
-        # no movement and in balance --> done
-        done = True if (all(vel == b2Vec2(0, 0) for vel in velocities) and abs(self.bar.angle) < FAULTTOLERANCE) else False
-        # done = True if (all(vel == b2Vec2(0, 0) for vel in velocities)) else False
-
-        # placeholder for info
-        info = {}
-
-        if (abs(self.bar.angle) - 0.390258252620697) > 0.000000001:
-            print("done")
-
-        return state, reward, done, info
-
-    def render(self, mode="human"): #todo
+    def render(self, mode="human"):  # todo
+        from gym.envs.classic_control import rendering
         renderer = self.renderer
+
+        self.screen.fill((0, 0, 0))
+
+        # Set the flags based on what the settings show
+        if renderer:
+            # convertVertices is only applicable when using b2DrawExtended.  It
+            # indicates that the C code should transform box2d coords to screen
+            # coordinates.
+            is_extended = isinstance(renderer, b2DrawExtended)
+            renderer.flags = dict(drawShapes=True,
+                                  drawJoints=False,  # True
+                                  drawAABBs=False,
+                                  drawPairs=False,
+                                  drawCOMs=False,
+                                  convertVertices=is_extended,
+                                  )
+
+        self.world.warmStarting = True
+        self.world.continuousPhysics = True
+        self.world.subStepping = False
+
+        # Reset the collision points
+        self.points = []
 
         if renderer is not None:
             renderer.StartDraw()
 
         self.world.DrawDebugData()
 
-        #renderer.DrawPolygon(0,0,0,0)
-        print("done")
-        sleep(3)
-
-        renderer.EndDraw()
-        pass
+        if renderer:
+            renderer.EndDraw()
+            pygame.display.flip()
 
     # TODO: fix it
     def reset(self):
         self.deleteAllBoxes()
 
         randomPositionA = -4. - 2 * random.random()
-        #randomDensityA = 4. + 2 * random.random()
+        randomDensityA = 4. + 2 * random.random()
         self.boxA = self.createBox(randomPositionA, self.y, DENSITY, BOXSIZE)
 
-        randomPositionB = 4. - 2 * random.random()
-        #randomDensityB = 4. + 2 * random.random()
+        randomPositionB = 4. + 2 * random.random()
+        randomDensityB = 4. + 2 * random.random()
         self.boxB = self.createBox(randomPositionB, self.y, DENSITY, BOXSIZE)
 
         self.boxes = [self.boxA, self.boxB]
@@ -348,10 +312,11 @@ class Scale(Framework): #, gym.Env):
         # return the observation
         return self.bar.angle  # ?? self.canvas
 
-
+    def seed(self, number):
+        pass
 
 # More functions can be changed to allow for contact monitoring and such.
-    # See the other testbed examples for more information.
+# See the other testbed examples for more information.
 
 if __name__ == "__main__":
     main(Scale)
