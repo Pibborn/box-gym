@@ -58,7 +58,7 @@ class Scale(Framework, gym.Env):
         super(Scale, self).__init__()
 
         # Initialize all of the objects
-        self.y, L, a, b = 16.0, 12.0, 1.0, 2.0
+        self.y, L, a, b = 6.0 + BOXSIZE, 12.0, 1.0, 2.0
         self.counter = 0  # ?
 
         # fixed parameters: weight of object A and the positions of both boxes
@@ -68,12 +68,18 @@ class Scale(Framework, gym.Env):
         # y: y-coordinate of the box
         # box: 1 --> choose BoxA, 2 --> BoxB
         self.action_space = Dict({
-            "x": Box(low=-10., high=10., shape=(1, 1), dtype=float),
+            "x": Box(low=-10., high=1., shape=(1, 1), dtype=float),
             "y": Box(low=1., high=10., shape=(1, 1), dtype=float),
             "box": Discrete(2)  # 1: BoxA, 2: BoxB
         })
 
-        #self.observation_space =
+        self.observation_space = Dict(spaces = {
+            "x1": Box(low=-20., high=20., shape=(1,), dtype=float),
+            "y1": Box(low=0., high=15., shape=(1,), dtype=float),
+            "x2": Box(low=-20., high=20., shape=(1,), dtype=float),
+            "y2": Box(low=0., high=15., shape=(1,), dtype=float),
+            "angle": Box(low=-390258252620697, high=390258252620697, shape=(1,), dtype=float),  # 1: BoxA, 2: BoxB
+        })
 
         # setting up the objects on the screen
         # The ground
@@ -107,7 +113,7 @@ class Scale(Framework, gym.Env):
 
         self.joint = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=self.triangle, anchor=topCoordinate)
 
-        self.state = [self.boxA, self.boxB, self.bar]  # ?
+        self.state = [self.boxA.position[0], self.boxA.position[1], self.boxB.position[0], self.boxB.position[1], self.bar.angle]  # ?
 
     def ConvertScreenToWorld(self, x, y):
         """
@@ -162,6 +168,14 @@ class Scale(Framework, gym.Env):
         movedBox = self.createBox(x, y, density, boxsize)
         return movedBox
 
+    def placeBox(self, box, pos):
+        "Place a box on the scale"
+        x = math.cos(self.bar.angle) * pos
+        y = 6 + math.tan(self.bar.angle) * pos + BOXSIZE
+        placedBox = self.moveBoxTo(box, x, y)
+        placedBox.angle = self.bar.angle
+        return placedBox
+
     def step(self, action=None, settings=None):
         # Don't do anything if the setting's Hz are <= 0
         hz = 60.0
@@ -176,13 +190,20 @@ class Scale(Framework, gym.Env):
         if not settings:
             settings = fwSettings
 
+        # check if test failed --> reward = -1
+        if (abs(self.bar.angle) > 0.390258252620697
+                or self.boxA.position[0] > 0
+                or self.boxB.position[0] < 0):
+            self.reset()
+            return self.state, -1, True, {}
+
         # catch special case that no action was executed
         if not action:
             self.world.Step(timeStep, velocityIterations,
                             positionIterations)
             self.world.ClearForces()
             self.render()
-            return [self.bar, self.boxA, self.boxB], 0, False, {}
+            return [self.boxA.position[0], self.boxA.position[1], self.boxB.position[0], self.boxB.position[1], self.bar.angle], 0, False, {}
 
         # extract information from action
         x = action["x"][0, 0]
@@ -199,13 +220,6 @@ class Scale(Framework, gym.Env):
 
         self.description = f"{self.joint.angle * 180 / math.pi}°"
 
-        # check if test failed --> reward = -1
-        if (abs(self.bar.angle) > 0.39
-                or self.boxA.position[0] > 0
-                or self.boxB.position[0] < 0):
-            self.reset()
-            return self.state, -1, True, {}
-
         def boxesOnScale():
             # TODO: fix
             """Utility function to check if both boxes are still on the scale"""
@@ -213,17 +227,19 @@ class Scale(Framework, gym.Env):
             return val
 
         # perform action
-        if box == 1:
-            self.boxA = self.moveBoxTo(self.boxA, x, y)
-        elif box == 2:
-            self.boxB = self.moveBoxTo(self.boxB, x, y)
+        if box == 0:
+            #self.boxA = self.moveBoxTo(self.boxA, x, y)
+            self.boxA = self.placeBox(self.boxA, x)
+        elif box == 1:
+            #self.boxB = self.moveBoxTo(self.boxB, x, y)
+            self.boxB = self.placeBox(self.boxB, x)
 
-        state = [self.bar, self.boxA, self.boxB]
+        self.state = [self.boxA.position[0], self.boxA.position[1], self.boxB.position[0], self.boxB.position[1], self.bar.angle]
         # Calculate reward (Scale in balance?)
         if abs(self.bar.angle) < FAULTTOLERANCE and boxesOnScale():
             reward = 1
-        elif not boxesOnScale():
-            reward = -1
+        #elif not boxesOnScale():
+        #    reward = -1
         else:
             reward = 0
         # alternatively: reward = (0.390258252620697 - self.bar.angle) / 0.390258252620697
@@ -237,9 +253,11 @@ class Scale(Framework, gym.Env):
         # placeholder for info
         info = {}
 
-        self.render()
+        #self.render()
 
-        return state, reward, done, info
+        #print(self.state, reward, done, info)
+
+        return self.state, reward, done, info
 
     def close(self):
         pygame.quit()
@@ -281,7 +299,6 @@ class Scale(Framework, gym.Env):
             renderer.EndDraw()
             pygame.display.flip()
 
-    # TODO: fix it
     def reset(self):
         self.deleteAllBoxes()
 
@@ -310,9 +327,9 @@ class Scale(Framework, gym.Env):
         # TODO
 
         # return the observation
-        return self.bar.angle  # ?? self.canvas
+        return [self.boxA.position[0], self.boxA.position[1], self.boxB.position[0], self.boxB.position[1], self.bar.angle]
 
-    def seed(self, number):
+    def seed(self, number): # todo:
         pass
 
 # More functions can be changed to allow for contact monitoring and such.

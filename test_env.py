@@ -8,17 +8,23 @@ if __name__ == '__main__':
     env = Scale()
     #main(Scale)
 
-    for i_episode in range(50):
+    for i_episode in range(1000):
         observation = env.reset()
         for t in range(100):
-            env.render()
             action = env.action_space.sample()
-            #action = None
+            if t%10 != 0:
+                action = None
             observation, reward, done, info = env.step(action=action, settings=None) #, display=True)
+            env.render()
             if done:
                 print("Episode finished after {} timesteps".format(t + 1))
                 break
     env.close()
+
+
+
+
+
     """
     env = Scale()
     episodes = 100000

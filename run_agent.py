@@ -50,7 +50,7 @@ def train_episode(env, policy, discount_factor):
         action_pred = policy(state)
         action_prob = F.softmax(action_pred, dim=-1)
         dist = distributions.Categorical(action_prob)
-        action = dist.sample()
+        action = dist.sample() # todo: counter --> only choose actions every x iterations
         log_prob_action = dist.log_prob(action)
         state, reward, done, _ = env.step(action.item())
         log_prob_actions.append(log_prob_action)
@@ -59,6 +59,7 @@ def train_episode(env, policy, discount_factor):
     log_prob_actions = torch.cat(log_prob_actions)
     returns = calculate_returns(rewards, discount_factor)
     loss = update_policy(returns, log_prob_actions, policy.optimizer)
+    #print(loss,episode_reward)
     return loss, episode_reward
 
 
@@ -144,8 +145,8 @@ if __name__ == '__main__':
     parser.add_argument('--threshold', type=float, default=475)
     args = parser.parse_args()
     train_env, test_env = create_envs(args.envname, seed=args.seed)
-    input_dim, output_dim = get_env_dims(train_env)
-    agent = VanillaGradMLP(input_dim, 100, output_dim) # todo: add random agent
+    input_dim, output_dim = 5, 3 #get_env_dims(train_env)
+    agent = VanillaGradMLP(input_dim, 100, output_dim)
     mean_train_rewards, mean_test_rewards = train_loop(agent, args)
     plot_rewards(mean_train_rewards, mean_test_rewards, args.threshold)
 
