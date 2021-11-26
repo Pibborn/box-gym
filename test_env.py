@@ -14,7 +14,8 @@ if __name__ == '__main__':
             action = env.action_space.sample()
             if t%10 != 0:
                 action = None
-            observation, reward, done, info = env.step(action=action, settings=None) #, display=True)
+            #action = None
+            observation, reward, done, info = env.step(action=action)
             env.render()
             if done:
                 print("Episode finished after {} timesteps".format(t + 1))

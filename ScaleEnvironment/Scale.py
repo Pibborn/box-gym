@@ -28,13 +28,12 @@ import numpy as np
 import pygame
 from Box2D import b2Color, b2Vec2, b2DrawExtended
 from gym.spaces import Discrete, Dict, Box
+from gym.utils import seeding
 from pyglet.math import Vec2
 
 from ScaleEnvironment.framework import (Framework, Keys, main)
 import Box2D
 from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape)
-
-from ScaleEnvironment.settings import fwSettings
 
 import gym
 
@@ -44,6 +43,8 @@ BOXSIZE = 1.0
 
 FAULTTOLERANCE = 0.001  # for the angle of the bar
 STEPSIZE = 0.001
+
+WAITINGITERATIONS = 20  # maximum iterations to wait per episode
 
 
 class Scale(Framework, gym.Env):
@@ -64,21 +65,22 @@ class Scale(Framework, gym.Env):
         # fixed parameters: weight of object A and the positions of both boxes
         # ??
 
-        # x: Determines the x-coordinate to place the box
-        # y: y-coordinate of the box
-        # box: 1 --> choose BoxA, 2 --> BoxB
+        # pos: Determines the x-coordinate to place the box on the bar
+        # box: 0 --> choose BoxA, 1 --> BoxB
         self.action_space = Dict({
-            "x": Box(low=-10., high=1., shape=(1, 1), dtype=float),
-            "y": Box(low=1., high=10., shape=(1, 1), dtype=float),
-            "box": Discrete(2)  # 1: BoxA, 2: BoxB
+            "pos": Box(low=-10., high=-0.5 - BOXSIZE, shape=(1, 1), dtype=float),
+            #"y": Box(low=0.5 + BOXSIZE, high=10., shape=(1, 1), dtype=float),
+            "box": Discrete(2)  # 0: BoxA, 1: BoxB
         })
 
-        self.observation_space = Dict(spaces = {
+        self.observation_space = Dict(spaces={
             "x1": Box(low=-20., high=20., shape=(1,), dtype=float),
             "y1": Box(low=0., high=15., shape=(1,), dtype=float),
             "x2": Box(low=-20., high=20., shape=(1,), dtype=float),
             "y2": Box(low=0., high=15., shape=(1,), dtype=float),
-            "angle": Box(low=-390258252620697, high=390258252620697, shape=(1,), dtype=float),  # 1: BoxA, 2: BoxB
+            "angle": Box(low=-390258252620697, high=390258252620697, shape=(1,), dtype=float),  # 0: BoxA, 1: BoxB,
+            # angular velocity of the bar, negative: moves to the right, positive: moves to the left
+            "vel": Box(low=-2., high=2., shape=(1,), dtype=float)
         })
 
         # setting up the objects on the screen
@@ -91,11 +93,11 @@ class Scale(Framework, gym.Env):
 
         # create Box A
         randomPositionA = -4. - 2 * random.random()  # between -4 and -6
-        # randomDensityA = 4. + 2 * random.random()  # between 4 and 6
+        randomDensityA = 4. + 2 * random.random()    # between 4 and 6
         self.boxA = self.createBox(randomPositionA, self.y, DENSITY, BOXSIZE)
 
         randomPositionB = 4. + 2 * random.random()
-        # randomDensityB = 4. + 2 * random.random()
+        randomDensityB = 4. + 2 * random.random()
         self.boxB = self.createBox(randomPositionB, self.y, DENSITY, BOXSIZE)
 
         topCoordinate = Vec2(0, 6)
@@ -113,7 +115,9 @@ class Scale(Framework, gym.Env):
 
         self.joint = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=self.triangle, anchor=topCoordinate)
 
-        self.state = [self.boxA.position[0], self.boxA.position[1], self.boxB.position[0], self.boxB.position[1], self.bar.angle]  # ?
+        self.state = [self.boxA.position[0], self.boxA.position[1],
+                      self.boxB.position[0], self.boxB.position[1],
+                      self.bar.angle, self.bar.angularVelocity]
 
     def ConvertScreenToWorld(self, x, y):
         """
@@ -136,7 +140,7 @@ class Scale(Framework, gym.Env):
         return newBox
 
     def deleteBox(self, box):  # todo: fix, maybe ID for every b2Body object
-        "Delete a box from the world"
+        """Delete a box from the world"""
         if box not in self.boxes:
             print("Box not found")
             return
@@ -146,7 +150,7 @@ class Scale(Framework, gym.Env):
         return
 
     def deleteAllBoxes(self):
-        """deletes every single box in the world"""
+        """Deletes every single box in the world"""
         for box in self.boxes:
             try:
                 self.world.DestroyBody(box)
@@ -176,26 +180,47 @@ class Scale(Framework, gym.Env):
         placedBox.angle = self.bar.angle
         return placedBox
 
-    def step(self, action=None, settings=None):
+    # move box function
+
+    def resetState(self):
+        """Resets and returns the current values of the state"""
+        self.state = [self.boxA.position[0], self.boxA.position[1],
+                      self.boxB.position[0], self.boxB.position[1],
+                      self.bar.angle, self.bar.angularVelocity]
+        return self.state
+
+    def step(self, action=None):
+        """Simulates the program with the given action and returns the observations"""
         # Don't do anything if the setting's Hz are <= 0
-        hz = 60.0
+        hz = 60.
         velocityIterations = 8
         positionIterations = 3
+
+        self.counter += 1
 
         if hz > 0.0:
             timeStep = 1.0 / hz
         else:
             timeStep = 0.0
 
-        if not settings:
-            settings = fwSettings
-
         # check if test failed --> reward = -1
-        if (abs(self.bar.angle) > 0.390258252620697
+        if (abs(self.bar.angle) > 0.390
                 or self.boxA.position[0] > 0
                 or self.boxB.position[0] < 0):
+            state = self.resetState().copy()
             self.reset()
-            return self.state, -1, True, {}
+            self.render()
+            return state, -1, True, {}
+
+        # check if no movement anymore
+        if self.state[5] == 0.0:
+            # check if time's up
+            if self.counter > WAITINGITERATIONS:
+                # self.render()
+                self.state = self.resetState()
+                return self.state, 1, True, {}
+        else:  # no movement --> reset counter
+            self.counter = 0
 
         # catch special case that no action was executed
         if not action:
@@ -203,11 +228,11 @@ class Scale(Framework, gym.Env):
                             positionIterations)
             self.world.ClearForces()
             self.render()
-            return [self.boxA.position[0], self.boxA.position[1], self.boxB.position[0], self.boxB.position[1], self.bar.angle], 0, False, {}
+            self.state = self.resetState()
+            return self.state, 0, False, {}
 
         # extract information from action
-        x = action["x"][0, 0]
-        y = action["y"][0, 0]
+        pos = action["pos"][0, 0]
         box = action["box"]
 
         # Reset the collision points
@@ -228,34 +253,36 @@ class Scale(Framework, gym.Env):
 
         # perform action
         if box == 0:
-            #self.boxA = self.moveBoxTo(self.boxA, x, y)
-            self.boxA = self.placeBox(self.boxA, x)
+            self.boxA = self.placeBox(self.boxA, pos)
         elif box == 1:
-            #self.boxB = self.moveBoxTo(self.boxB, x, y)
-            self.boxB = self.placeBox(self.boxB, x)
+            self.boxB = self.placeBox(self.boxB, pos)
 
-        self.state = [self.boxA.position[0], self.boxA.position[1], self.boxB.position[0], self.boxB.position[1], self.bar.angle]
+        self.state = self.resetState()
+
         # Calculate reward (Scale in balance?)
         if abs(self.bar.angle) < FAULTTOLERANCE and boxesOnScale():
             reward = 1
-        #elif not boxesOnScale():
+        # elif not boxesOnScale():
         #    reward = -1
         else:
             reward = 0
-        # alternatively: reward = (0.390258252620697 - self.bar.angle) / 0.390258252620697
+
+        if boxesOnScale():
+            reward = (0.390258252620697 - self.bar.angle) / 0.390258252620697
+            print(reward)
+        else:
+            reward = - 1
+            print(reward)
 
         # no movement and in balance --> done
         velocities = [self.bar.linearVelocity, self.boxA.linearVelocity, self.boxB.linearVelocity]
         done = True if (  # TODO: wait a few seconds/look at forces to be 100% sure the scale won't move again
                 all(vel == b2Vec2(0, 0) for vel in velocities) and abs(self.bar.angle) < FAULTTOLERANCE) else False
-        # done = True if (all(vel == b2Vec2(0, 0) for vel in velocities)) else False
 
         # placeholder for info
         info = {}
 
-        #self.render()
-
-        #print(self.state, reward, done, info)
+        self.render()
 
         return self.state, reward, done, info
 
@@ -323,14 +350,14 @@ class Scale(Framework, gym.Env):
         # Reset the reward
         # TODO
 
-        # Determine a new weight for the Box B (?)
-        # TODO
-
         # return the observation
-        return [self.boxA.position[0], self.boxA.position[1], self.boxB.position[0], self.boxB.position[1], self.bar.angle]
+        self.resetState()
+        return self.state
 
-    def seed(self, number): # todo:
-        pass
+    def seed(self, seed=None):
+        self.np_random, seed = seeding.np_random(seed)
+        return [seed]
+
 
 # More functions can be changed to allow for contact monitoring and such.
 # See the other testbed examples for more information.
