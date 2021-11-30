@@ -31,7 +31,7 @@ class VanillaGradMLP(nn.Module):
     def init_weights(self):
         self.apply(xavier_init)
 
-    def train_episode(self, env, discount_factor):
+    def train_episode(self, env, discount_factor, verbose=0):
         self.train()
         log_prob_actions = []
         rewards = []
@@ -52,7 +52,8 @@ class VanillaGradMLP(nn.Module):
         log_prob_actions = torch.cat(log_prob_actions)
         returns = self.calculate_returns(rewards, discount_factor)
         loss = self.update_policy(returns, log_prob_actions, self.optimizer)
-        # print(loss,episode_reward)
+        if verbose > 0:
+            print(loss,episode_reward)
         return loss, episode_reward
 
     def calculate_returns(self, rewards, discount_factor, normalize=True):
