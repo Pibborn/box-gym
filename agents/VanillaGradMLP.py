@@ -7,7 +7,6 @@ import torch.nn.functional as F
 import torchvision.transforms as T
 import torch.distributions as distributions
 import numpy as np
-from ScaleEnvironment.Scale import rescale_movement
 from collections import OrderedDict
 
 class VanillaGradMLP(nn.Module):
@@ -54,14 +53,12 @@ class VanillaGradMLP(nn.Module):
                 action = action.item()
             else:
                 which_box = torch.sigmoid(action_pred[0][0])
-                movement = torch.sigmoid(action_pred[0][1])
-                movement = rescale_movement((0, 1), movement)
+                movement = torch.tanh(action_pred[0][1])
                 dist_box = distributions.Categorical(torch.reshape(which_box, (1, 1)))
                 dist_movement = distributions.Normal(torch.reshape(movement, (1, 1)), 1)
                 box_action = dist_box.sample()
                 movement_action = dist_movement.sample()
-                action = OrderedDict([('box', np.array([[box_action.item()]])), ('pos', np.array([[movement_action.item()]]))])
-                #print(len(log_prob_actions))
+                action = OrderedDict([('box', np.array([[box_action.item()]])), ('delta_pos', np.array([[movement_action.item()]]))])
                 log_prob_actions.append(dist_box.log_prob(box_action) * dist_movement.log_prob(movement_action))
             state, reward, done, _ = env.step(action)
             rewards.append(reward)
