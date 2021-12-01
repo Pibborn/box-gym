@@ -56,7 +56,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     train_env, test_env = create_envs(args.envname, seed=args.seed)
     input_dim, output_dim = get_env_dims(train_env)
-    agent = VanillaGradMLP(input_dim, 100, output_dim)
+    agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=0.2, uses_scale=args.envname=='scale')
     mean_train_rewards, mean_test_rewards = agent.train_loop(train_env, test_env, args)
     plot_rewards(mean_train_rewards, mean_test_rewards, args.threshold)
 

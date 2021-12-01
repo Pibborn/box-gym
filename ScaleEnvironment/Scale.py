@@ -46,6 +46,11 @@ STEPSIZE = 0.001
 
 WAITINGITERATIONS = 20  # maximum iterations to wait per episode
 
+def rescale_movement(original_interval, value, to_interval=(-10, -0.5-BOXSIZE)):
+    a, b = original_interval
+    c, d = to_interval
+    return c + ((d-c) / (b-a)) * (value-a)
+
 
 class Scale(Framework, gym.Env):
     """You can use this class as an outline for your tests."""
@@ -269,10 +274,10 @@ class Scale(Framework, gym.Env):
 
         if boxesOnScale():
             reward = (0.390258252620697 - self.bar.angle) / 0.390258252620697
-            print(reward)
+            #print(reward)
         else:
             reward = - 1
-            print(reward)
+            #print(reward)
 
         # no movement and in balance --> done
         velocities = [self.bar.linearVelocity, self.boxA.linearVelocity, self.boxB.linearVelocity]

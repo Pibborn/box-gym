@@ -9,6 +9,7 @@ action_space = Dict({
 
 for _ in range(10):
     sample = action_space.sample()
+    print(sample)
     x = sample["x"][0,0]
     y = sample["y"][0, 0]
     box = sample["box"]
