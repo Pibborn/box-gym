@@ -1,11 +1,12 @@
 #from ScaleEnvironment.Scale import Scale
+import os
 from time import sleep
 
 from ScaleEnvironment.Scale import Scale
 from ScaleEnvironment.framework import main
 
 if __name__ == '__main__':
-    env = Scale()
+    env = Scale(rendering=True)
     #main(Scale)
 
     for i_episode in range(1000):

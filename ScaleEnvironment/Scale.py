@@ -51,18 +51,20 @@ class Scale(Framework, gym.Env):
     """You can use this class as an outline for your tests."""
     name = "Scale"  # Name of the class to display
 
-    def __init__(self):
+    def __init__(self, rendering = True):
         """
         Initialize all of your objects here.
         Be sure to call the Framework's initializer first.
         """
-        super(Scale, self).__init__()
+        super(Scale, self).__init__(rendering)
 
         self.seed()
 
         # Initialize all of the objects
         self.y, L, a, b = 6.0 + BOXSIZE, 12.0, 1.0, 2.0
         self.counter = 0  # ?
+
+        self.rendering = rendering
 
         # fixed parameters: weight of object A and the positions of both boxes
         # ??
@@ -355,7 +357,7 @@ class Scale(Framework, gym.Env):
         self.deleteAllBoxes()
 
         randomPositionA = self.np_random.uniform(-6, -4)
-        sleep(1)
+        #sleep(1)
         randomDensityA = self.np_random.uniform(4, 6)
         self.boxA = self.createBox(randomPositionA, self.y, DENSITY, BOXSIZE)
 

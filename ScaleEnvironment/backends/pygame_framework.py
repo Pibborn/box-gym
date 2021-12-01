@@ -36,6 +36,8 @@ Mouse:
 """
 
 from __future__ import (print_function, absolute_import, division)
+
+import os
 import sys
 import warnings
 
@@ -221,7 +223,7 @@ class PygameFramework(FrameworkBase):
         self.gui_table = None
         self.setup_keys()
 
-    def __init__(self):
+    def __init__(self, rendering = True):
         super(PygameFramework, self).__init__()
 
         self.__reset()
@@ -231,37 +233,48 @@ class PygameFramework(FrameworkBase):
         print('Initializing pygame framework...')
         # Pygame Initialization
         pygame.init()
-        caption = "Python Box2D Testbed - " + self.name
-        pygame.display.set_caption(caption)
+        if not rendering:
+            os.environ["SDL_VIDEODRIVER"] = "dummy"
+            self.__reset()
+            if fwSettings.onlyInit:  # testing mode doesn't initialize pygame
+                return
 
-        # Screen and debug draw
-        self.screen = pygame.display.set_mode((640, 480))
-        self.screenSize = b2Vec2(*self.screen.get_size())
+            print('Initializing pygame headless framework...')
+            # Pygame Initialization
+            pygame.display.init()
+            self.screen = pygame.display.set_mode((1, 1))
+        else:
+            caption = "Python Box2D Testbed - " + self.name
+            pygame.display.set_caption(caption)
 
-        self.renderer = PygameDraw(surface=self.screen, test=self)
-        self.world.renderer = self.renderer
+            # Screen and debug draw
+            self.screen = pygame.display.set_mode((640, 480))
+            self.screenSize = b2Vec2(*self.screen.get_size())
 
-        try:
-            self.font = pygame.font.Font(None, 15)
-        except IOError:
+            self.renderer = PygameDraw(surface=self.screen, test=self)
+            self.world.renderer = self.renderer
+
             try:
-                self.font = pygame.font.Font("freesansbold.ttf", 15)
+                self.font = pygame.font.Font(None, 15)
             except IOError:
-                print("Unable to load default font or 'freesansbold.ttf'")
-                print("Disabling text drawing.")
-                self.Print = lambda *args: 0
-                self.DrawStringAt = lambda *args: 0
+                try:
+                    self.font = pygame.font.Font("freesansbold.ttf", 15)
+                except IOError:
+                    print("Unable to load default font or 'freesansbold.ttf'")
+                    print("Disabling text drawing.")
+                    self.Print = lambda *args: 0
+                    self.DrawStringAt = lambda *args: 0
 
-        # GUI Initialization
-        if GUIEnabled:
-            self.gui_app = gui.App()
-            self.gui_table = fwGUI(self.settings)
-            container = gui.Container(align=1, valign=-1)
-            container.add(self.gui_table, 0, 0)
-            self.gui_app.init(container)
+            # GUI Initialization
+            if GUIEnabled:
+                self.gui_app = gui.App()
+                self.gui_table = fwGUI(self.settings)
+                container = gui.Container(align=1, valign=-1)
+                container.add(self.gui_table, 0, 0)
+                self.gui_app.init(container)
 
-        self.viewCenter = (0, 20.0)
-        self.groundbody = self.world.CreateBody()
+            self.viewCenter = (0, 20.0)
+            self.groundbody = self.world.CreateBody()
 
     def setCenter(self, value):
         """
