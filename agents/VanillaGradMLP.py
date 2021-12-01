@@ -55,7 +55,7 @@ class VanillaGradMLP(nn.Module):
                 which_box = torch.sigmoid(action_pred[0][0])
                 movement = torch.tanh(action_pred[0][1])
                 dist_box = distributions.Categorical(torch.reshape(which_box, (1, 1)))
-                dist_movement = distributions.Normal(torch.reshape(movement, (1, 1)), 1)
+                dist_movement = distributions.Normal(torch.reshape(movement, (1, 1)), 0.2)
                 box_action = dist_box.sample()
                 movement_action = dist_movement.sample()
                 action = OrderedDict([('box', np.array([[box_action.item()]])), ('delta_pos', np.array([[movement_action.item()]]))])
@@ -101,9 +101,21 @@ class VanillaGradMLP(nn.Module):
             state = torch.FloatTensor(state).unsqueeze(0)
             with torch.no_grad():
                 action_pred = self(state)
-                action_prob = F.softmax(action_pred, dim=-1)
-            action = torch.argmax(action_prob, dim=-1)
-            state, reward, done, _ = env.step(action.item())
+                if not self.uses_scale:
+                    action_prob = F.softmax(action_pred, dim=-1)
+                    action = torch.argmax(action_prob, dim=-1)
+                    action = action.item()
+                else:
+                    which_box = torch.sigmoid(action_pred[0][0])
+                    movement = torch.tanh(action_pred[0][1])
+                    dist_box = distributions.Categorical(torch.reshape(which_box, (1, 1)))
+                    dist_movement = distributions.Normal(torch.reshape(movement, (1, 1)), 0.2)
+                    box_action = dist_box.sample()
+                    movement_action = dist_movement.sample()
+                    action = OrderedDict(
+                        [('box', np.array([[box_action]])), ('delta_pos', np.array([[movement_action]]))]
+                    )
+            state, reward, done, _ = env.step(action)
             episode_reward += reward
         return episode_reward
 
