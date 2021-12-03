@@ -207,12 +207,25 @@ class Scale(Framework, gym.Env):
                       self.bar.angle, self.bar.angularVelocity]
         return self.state
 
-    def step(self, action=None):
+    def step(self, action):
+        state, _, _, _ = self.internal_step(action)
+        done = False
+        for _ in range(50):
+            if not done:
+                state, reward, done, info = self.internal_step()
+            else:
+                return state, reward, done, info
+        return state, reward, done, info
+
+    def internal_step(self, action=None):
         """Simulates the program with the given action and returns the observations"""
         # Don't do anything if the setting's Hz are <= 0
         hz = 60.
         velocityIterations = 8
         positionIterations = 3
+        velocityIterations *= 1
+        positionIterations *= 1
+
 
         self.counter += 1
 

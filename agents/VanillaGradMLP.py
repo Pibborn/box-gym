@@ -6,6 +6,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import torchvision.transforms as T
 import torch.distributions as distributions
+from torch import autograd
 import numpy as np
 from collections import OrderedDict
 
@@ -25,10 +26,11 @@ class VanillaGradMLP(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
 
     def forward(self, x):
-        x = self.fc_1(x)
-        x = self.dropout(x)
-        x = F.relu(x)
-        x = self.fc_2(x)
+        with autograd.detect_anomaly():
+            x = self.fc_1(x)
+            x = self.dropout(x)
+            x = F.relu(x)
+            x = self.fc_2(x)
         return x
 
     def init_weights(self):
@@ -101,6 +103,7 @@ class VanillaGradMLP(nn.Module):
             state = torch.FloatTensor(state).unsqueeze(0)
             with torch.no_grad():
                 action_pred = self(state)
+                #print(self(state), state, action_pred)
                 if not self.uses_scale:
                     action_prob = F.softmax(action_pred, dim=-1)
                     action = torch.argmax(action_prob, dim=-1)
