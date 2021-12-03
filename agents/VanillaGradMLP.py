@@ -12,7 +12,7 @@ from collections import OrderedDict
 
 class VanillaGradMLP(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.5,
-                 lr=0.05, uses_scale=True):
+                 lr=0.0005, uses_scale=True):
         super().__init__()
         self.uses_scale = uses_scale
         self.fc_1 = nn.Linear(input_dim, hidden_dim)
@@ -28,8 +28,9 @@ class VanillaGradMLP(nn.Module):
     def forward(self, x):
         with autograd.detect_anomaly():
             x = self.fc_1(x)
+            if
             x = self.dropout(x)
-            x = F.relu(x)
+            x = F.sigmoid(x)
             x = self.fc_2(x)
         return x
 
