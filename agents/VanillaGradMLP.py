@@ -28,7 +28,6 @@ class VanillaGradMLP(nn.Module):
     def forward(self, x):
         with autograd.detect_anomaly():
             x = self.fc_1(x)
-            if
             x = self.dropout(x)
             x = F.sigmoid(x)
             x = self.fc_2(x)
@@ -84,7 +83,10 @@ class VanillaGradMLP(nn.Module):
             returns.insert(0, R)
         returns = torch.tensor(returns)
         if normalize:
-            returns = (returns - returns.mean()) / returns.std()
+            if returns.size()[0] > 1:
+                returns = (returns - returns.mean()) / returns.std()
+            else:
+                pass
         return returns
 
     def update_policy(self, returns, log_prob_actions, optimizer):
@@ -132,7 +134,7 @@ class VanillaGradMLP(nn.Module):
         train_rewards = []
         test_rewards = []
         for episode in range(1, MAX_EPISODES + 1):
-            loss, train_reward = self.train_episode(train_env, DISCOUNT_FACTOR)
+            loss, train_reward = self.train_episode(train_env, DISCOUNT_FACTOR, verbose=0)
             test_reward = self.evaluate(test_env)
             train_rewards.append(train_reward)
             test_rewards.append(test_reward)

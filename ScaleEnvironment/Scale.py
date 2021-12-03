@@ -212,10 +212,10 @@ class Scale(Framework, gym.Env):
         done = False
         for _ in range(50):
             if not done:
-                state, reward, done, info = self.internal_step()
+                self.state, reward, done, info = self.internal_step()
             else:
-                return state, reward, done, info
-        return state, reward, done, info
+                return self.state, reward, done, info
+        return self.state, reward, done, info
 
     def internal_step(self, action=None):
         """Simulates the program with the given action and returns the observations"""
