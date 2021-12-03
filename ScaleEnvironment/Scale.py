@@ -89,11 +89,15 @@ class Scale(Framework, gym.Env):
         self.observation_space = Dict(spaces={
             "x1": Box(low=-20., high=20., shape=(1,), dtype=float),
             "y1": Box(low=0., high=15., shape=(1,), dtype=float),
+            #"density1": Box(low=4., high=6., shape=(1,), dtype=float),
             "x2": Box(low=-20., high=20., shape=(1,), dtype=float),
             "y2": Box(low=0., high=15., shape=(1,), dtype=float),
+            #"density2": Box(low=4., high=6., shape=(1,), dtype=float),
             "angle": Box(low=-390258252620697, high=390258252620697, shape=(1,), dtype=float),  # 0: BoxA, 1: BoxB,
             # angular velocity of the bar, negative: moves to the right, positive: moves to the left
-            "vel": Box(low=-2., high=2., shape=(1,), dtype=float)
+            "vel": Box(low=-2., high=2., shape=(1,), dtype=float),
+            "density1": Box(low=4., high=6., shape=(1,), dtype=float),
+            "density2": Box(low=4., high=6., shape=(1,), dtype=float),
         })
 
         # setting up the objects on the screen
@@ -130,7 +134,8 @@ class Scale(Framework, gym.Env):
 
         self.state = [self.boxA.position[0], self.boxA.position[1],
                       self.boxB.position[0], self.boxB.position[1],
-                      self.bar.angle, self.bar.angularVelocity]
+                      self.bar.angle, self.bar.angularVelocity,
+                      DENSITY, DENSITY]
 
     def ConvertScreenToWorld(self, x, y):
         """
@@ -204,7 +209,8 @@ class Scale(Framework, gym.Env):
         """Resets and returns the current values of the state"""
         self.state = [self.boxA.position[0], self.boxA.position[1],
                       self.boxB.position[0], self.boxB.position[1],
-                      self.bar.angle, self.bar.angularVelocity]
+                      self.bar.angle, self.bar.angularVelocity,
+                      self.state[6], self.state[7]]  # densities cannot be accessed through the box object ...
         return self.state
 
     def step(self, action):

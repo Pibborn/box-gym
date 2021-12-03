@@ -37,13 +37,16 @@ class VanillaGradMLP(nn.Module):
         self.apply(xavier_init)
 
     def train_episode(self, env, discount_factor, verbose=0):
+        MAXITERATIONS = 20
         self.train()
         log_prob_actions = []
         rewards = []
         done = False
         episode_reward = 0
         state = env.reset()
-        while not done:
+        for _ in range(MAXITERATIONS):
+            if done:
+                break
             state = torch.FloatTensor(state).unsqueeze(0)
             action_pred = self(state)
             if not self.uses_scale:

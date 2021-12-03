@@ -16,8 +16,8 @@ import argparse
 
 def create_envs(env_str, seed=42):
     if env_str == 'scale':
-        train_env = Scale(rendering=False)
-        test_env = Scale(rendering=False)
+        train_env = Scale(rendering=True)
+        test_env = Scale(rendering=True)
     else:
         train_env = GymEnv(env_str)
         train_env = train_env.create()
