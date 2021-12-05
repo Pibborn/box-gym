@@ -56,6 +56,16 @@ class VanillaGradMLP(nn.Module):
                 log_prob_action = dist.log_prob(action)
                 log_prob_actions.append(log_prob_action)
                 action = action.item()
+            elif self.exp_scale:
+                box1_pos = torch.tanh(action_pred[0][0])
+                box2_pos = torch.tanh(action_pred[0][1])
+                dist_box1 = distributions.Normal(torch.reshape(box1_pos, (1, 1)), 0.2)
+                dist_box2 = distributions.Normal(torch.reshape(box2_pos, (1, 1)), 0.2)
+                box1_action = dist_box1.sample()
+                box2_action = dist_box2.sample()
+                action = OrderedDict(
+                    [('box1_pos', np.array([[box_action.item()]])), ('box2_pos', np.array([[movement_action.item()]]))])
+                log_prob_actions.append(dist_box1.log_prob(box_action) + dist_box2.log_prob(movement_action))
             else:
                 which_box = torch.sigmoid(action_pred[0][0])
                 movement = torch.tanh(action_pred[0][1])
@@ -64,7 +74,7 @@ class VanillaGradMLP(nn.Module):
                 box_action = dist_box.sample()
                 movement_action = dist_movement.sample()
                 action = OrderedDict([('box', np.array([[box_action.item()]])), ('delta_pos', np.array([[movement_action.item()]]))])
-                log_prob_actions.append(dist_box.log_prob(box_action) * dist_movement.log_prob(movement_action))
+                log_prob_actions.append(dist_box.log_prob(box_action) + dist_movement.log_prob(movement_action))
             state, reward, done, _ = env.step(action)
             rewards.append(reward)
             episode_reward += reward
