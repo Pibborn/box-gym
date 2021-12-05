@@ -11,6 +11,7 @@ from PIL import Image
 
 from environments.GymEnv import GymEnv
 from ScaleEnvironment.Scale import Scale
+from ScaleEnvironment.ScaleExperiment import ScaleExperiment
 from agents.VanillaGradMLP import VanillaGradMLP
 import argparse
 
@@ -18,6 +19,8 @@ def create_envs(env_str, seed=42):
     if env_str == 'scale':
         train_env = Scale(rendering=True)
         test_env = Scale(rendering=True)
+    elif env_str == 'scale_exp':
+        train_env =
     else:
         train_env = GymEnv(env_str)
         train_env = train_env.create()
