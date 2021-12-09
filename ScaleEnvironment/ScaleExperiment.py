@@ -39,15 +39,15 @@ import gym
 
 BOXSIZE = 1.0
 DENSITY = 5.0
-BOXSIZE = 1.0
 BARLENGTH = 15
 
 FAULTTOLERANCE = 0.001  # for the angle of the bar
-STEPSIZE = 0.001
+ANGLE_TRESHHOLD = 0.80
 
 WAITINGITERATIONS = 20  # maximum iterations to wait per episode
+MAXITERATIONS = 1000
 
-def rescale_movement(original_interval, value, to_interval=(-20, +20)):
+def rescale_movement(original_interval, value, to_interval=(-BARLENGTH, +BARLENGTH)):
     a, b = original_interval
     c, d = to_interval
     return c + ((d-c) / (b-a)) * (value-a)
@@ -67,36 +67,23 @@ class ScaleExperiment(Framework, gym.Env):
 
         # Initialize all of the objects
         self.y, L, a, b = 6.0 + BOXSIZE, 12.0, 1.0, 2.0
+
         self.counter = 0  # ?
+        self.timesteps = 0
+        self.reward = 0
 
         self.rendering = rendering
 
-        # fixed parameters: weight of object A and the positions of both boxes
-        # ??
-
-        """
-        # pos: Determines the x-coordinate to place the box on the bar
-        # box: 0 --> choose BoxA, 1 --> BoxB
-        self.action_space = Dict({
-            "pos": Box(low=-10., high=-0.5 - BOXSIZE, shape=(1, 1), dtype=float),
-            "box": Discrete(2)  # 0: BoxA, 1: BoxB
-        })
-        """
-
         #########################################################################
         self.action_space = Dict({
-            "box1_pos": Box(low=-1., high=+1., shape=(1, 1), dtype=float),
-            "box2_pos": Box(low=-1., high=+1., shape=(1, 1), dtype=float)
+            "box1_pos": Box(low=-BARLENGTH+2*BOXSIZE, high=-2*BOXSIZE, shape=(1, 1), dtype=float),
+            "box2_pos": Box(low=2*BOXSIZE, high=BARLENGTH-2*BOXSIZE, shape=(1, 1), dtype=float)
         })
 
         self.observation_space = Dict(spaces={
-            "x1": Box(low=-20., high=20., shape=(1,), dtype=float),
-            "y1": Box(low=0., high=15., shape=(1,), dtype=float),
-            #"density1": Box(low=4., high=6., shape=(1,), dtype=float),
-            "x2": Box(low=-20., high=20., shape=(1,), dtype=float),
-            "y2": Box(low=0., high=15., shape=(1,), dtype=float),
-            #"density2": Box(low=4., high=6., shape=(1,), dtype=float),
-            "angle": Box(low=-390258252620697, high=390258252620697, shape=(1,), dtype=float),  # 0: BoxA, 1: BoxB,
+            "pos1": Box(low=-20., high=20., shape=(1,), dtype=float),
+            "pos2": Box(low=-20., high=20., shape=(1,), dtype=float),
+            "angle": Box(low=-390258252620697, high=390258252620697, shape=(1,), dtype=float),
             # angular velocity of the bar, negative: moves to the right, positive: moves to the left
             "vel": Box(low=-2., high=2., shape=(1,), dtype=float),
             "density1": Box(low=4., high=6., shape=(1,), dtype=float),
@@ -112,13 +99,13 @@ class ScaleExperiment(Framework, gym.Env):
         self.boxes = []
 
         # create Box A
-        randomPositionA = -4. - 2 * random.random()  # between -4 and -6
+        startingPositionA = - BARLENGTH - 3
         randomDensityA = 4. + 2 * random.random()  # between 4 and 6
-        self.boxA = self.createBox(randomPositionA, self.y, DENSITY, BOXSIZE)
+        self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=DENSITY, boxsize=BOXSIZE)
 
-        randomPositionB = 4. + 2 * random.random()
+        startingPositionB = BARLENGTH + 3
         randomDensityB = 4. + 2 * random.random()
-        self.boxB = self.createBox(randomPositionB, self.y, DENSITY, BOXSIZE)
+        self.boxB = self.createBox(pos_x=startingPositionB, pos_y=BOXSIZE, density=DENSITY, boxsize=BOXSIZE)
 
         topCoordinate = Vec2(0, 6)
         self.triangle = self.world.CreateStaticBody(
@@ -135,8 +122,9 @@ class ScaleExperiment(Framework, gym.Env):
 
         self.joint = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=self.triangle, anchor=topCoordinate)
 
-        self.state = [self.boxA.position[0], self.boxA.position[1],
-                      self.boxB.position[0], self.boxB.position[1],
+        pos1 = self.boxA.position[0] / math.cos(self.bar.angle)
+        pos2 = self.boxB.position[0] / math.cos(self.bar.angle)
+        self.state = [pos1, pos2,
                       self.bar.angle, self.bar.angularVelocity,
                       DENSITY, DENSITY]
 
@@ -210,10 +198,11 @@ class ScaleExperiment(Framework, gym.Env):
 
     def resetState(self):
         """Resets and returns the current values of the state"""
-        self.state = [self.boxA.position[0], self.boxA.position[1],
-                      self.boxB.position[0], self.boxB.position[1],
+        pos1 = self.boxA.position[0] / math.cos(self.bar.angle)
+        pos2 = self.boxB.position[0] / math.cos(self.bar.angle)
+        self.state = [pos1, pos2,
                       self.bar.angle, self.bar.angularVelocity,
-                      self.state[6], self.state[7]]  # densities cannot be accessed through the box object ...
+                      self.state[4], self.state[5]]  # densities cannot be accessed through the box object ...
         return self.state
 
     def step(self, action):
@@ -225,6 +214,24 @@ class ScaleExperiment(Framework, gym.Env):
 
     def internal_step(self, action=None):
         """Simulates the program with the given action and returns the observations"""
+        def boxesOnScale():
+            """Utility function to check if both boxes are still on the scale"""
+            val = len(self.boxA.contacts) >= 1 and len(self.boxB.contacts) >= 1 and len(self.bar.contacts) == 2
+            return val
+
+        def getReward():
+            """Calculates the reward and adds it to the self.reward value"""
+            # Calculate reward (Scale in balance?)
+            if boxesOnScale():
+                if abs(self.bar.angle) < FAULTTOLERANCE and boxesOnScale():
+                    reward = 1
+                else:
+                    reward = (0.390258252620697 - abs(self.bar.angle)) / 0.390258252620697
+                self.reward += reward
+            else:
+                reward = - 1
+            return reward
+
         # Don't do anything if the setting's Hz are <= 0
         hz = 60.
         velocityIterations = 8
@@ -232,29 +239,35 @@ class ScaleExperiment(Framework, gym.Env):
         velocityIterations *= 1
         positionIterations *= 1
 
-        self.counter += 1
-
         if hz > 0.0:
             timeStep = 1.0 / hz
         else:
             timeStep = 0.0
 
-        # check if test failed --> reward = -1
+        self.counter += 1
+        self.timesteps += 1
+
+        # check if test failed --> return reward
         if (abs(self.bar.angle) > 0.390
-                or self.boxA.position[0] > 0
-                or self.boxB.position[0] < 0):
+                #or self.boxA.position[0] > 0
+                #or self.boxB.position[0] < 0
+                or self.timesteps > MAXITERATIONS):
             state = self.resetState().copy()
+            #reward = self.reward / self.timesteps
+            reward = self.timesteps
             self.reset()
             self.render()
-            return state, -1, True, {}
+            return state, reward, True, {}
 
         # check if no movement anymore
-        if self.state[5] == 0.0:
+        if self.state[3] == 0.0 and boxesOnScale():
             # check if time's up
             if self.counter > WAITINGITERATIONS:
                 # self.render()
                 self.state = self.resetState()
-                return self.state, 1, True, {}
+                print("Match:", self.boxA.position[0], self.boxB.position[0], self.bar.angle, getReward())
+                reward = getReward()
+                return self.state, 2 * MAXITERATIONS, True, {}
         else:  # no movement --> reset counter
             self.counter = 0
 
@@ -264,28 +277,17 @@ class ScaleExperiment(Framework, gym.Env):
                             positionIterations)
             self.world.ClearForces()
             self.render()
+            getReward()
+            reward = self.timesteps
+            #reward = self.reward / self.timesteps
             self.state = self.resetState()
-            return self.state, 0, False, {}
+            return self.state, reward, False, {}
 
         # extract information from action
-        """pos = action["pos"][0, 0]
-        box = action["box"]"""
-
         box1_pos = action["box1_pos"][0, 0]
         box2_pos = action["box2_pos"][0, 0]
 
-        def boxesOnScale():
-            # TODO: fix
-            """Utility function to check if both boxes are still on the scale"""
-            val = len(self.boxA.contacts) >= 1 and len(self.boxB.contacts) >= 1 and len(self.bar.contacts) == 2
-            return val
-
         # perform action
-        """if box == 0:
-            self.boxA = self.placeBox(self.boxA, pos)
-        elif box == 1:
-            self.boxB = self.placeBox(self.boxB, pos)"""
-
         self.boxA = self.placeBox(self.boxA, box1_pos)
         self.boxB = self.placeBox(self.boxB, box2_pos)
 
@@ -301,22 +303,9 @@ class ScaleExperiment(Framework, gym.Env):
         self.state = self.resetState()
 
         # Calculate reward (Scale in balance?)
-        if abs(self.bar.angle) < FAULTTOLERANCE and boxesOnScale():
-            reward = 1
-        # elif not boxesOnScale():
-        #    reward = -1
-        else:
-            reward = 0
-
-        if boxesOnScale():
-            end_of_bar = BARLENGTH * abs(math.cos(self.bar.angle))
-            if self.boxA.position[0] > - BOXSIZE or self.boxA.position[0] < - end_of_bar or \
-                    self.boxB.position[0] < 0 or self.boxB.position[0] > end_of_bar:
-                reward = -1
-            else:
-                reward = (0.390258252620697 - abs(self.bar.angle)) / 0.390258252620697
-        else:
-            reward = - 1
+        getReward()
+        reward = self.timesteps
+        #reward == self.reward / self.timesteps
 
         # no movement and in balance --> done
         # velocities = [self.bar.linearVelocity, self.boxA.linearVelocity, self.boxB.linearVelocity]
@@ -372,13 +361,13 @@ class ScaleExperiment(Framework, gym.Env):
     def reset(self):
         self.deleteAllBoxes()
 
-        randomPositionA = self.np_random.uniform(-6, -4)
+        startingPositionA = - BARLENGTH - 3 * BOXSIZE
         randomDensityA = self.np_random.uniform(4, 6)
-        self.boxA = self.createBox(randomPositionA, self.y, DENSITY, BOXSIZE)
+        self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=DENSITY, boxsize=BOXSIZE)
 
-        randomPositionB = self.np_random.uniform(4, 6)
+        startingPositionB = BARLENGTH + 3 * BOXSIZE
         randomDensityB = self.np_random.uniform(4, 6)
-        self.boxB = self.createBox(randomPositionB, self.y, DENSITY, BOXSIZE)
+        self.boxB = self.createBox(pos_x=startingPositionB, pos_y=BOXSIZE, density=DENSITY, boxsize=BOXSIZE)
 
         self.boxes = [self.boxA, self.boxB]
 
@@ -386,10 +375,10 @@ class ScaleExperiment(Framework, gym.Env):
         self.bar.angle = 0
         self.bar.angularVelocity = 0.
 
+        # Reset the reward and the counters
         self.counter = 0
-
-        # Reset the reward
-        # TODO
+        self.timesteps = 0
+        self.reward = 0
 
         # return the observation
         self.resetState()
@@ -404,4 +393,4 @@ class ScaleExperiment(Framework, gym.Env):
 # See the other testbed examples for more information.
 
 if __name__ == "__main__":
-    main(Scale)
+    main(ScaleExperiment)

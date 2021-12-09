@@ -52,14 +52,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('envname')
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--episodes', type=int, default=1000)
+    parser.add_argument('--episodes', type=int, default=10000) # old default: 1000
     parser.add_argument('--trials', type=int, default=25)
     parser.add_argument('--printevery', type=int, default=10)
     parser.add_argument('--discount', type=float, default=0.99)
-    parser.add_argument('--threshold', type=float, default=475)
+    parser.add_argument('--threshold', type=float, default=650) # old default: 475
     parser.add_argument('--render', action='store_true')
     args = parser.parse_args()
-    train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=True)
+    train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=False) # do_render=True
     input_dim, output_dim = get_env_dims(train_env)
     agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=0.2, uses_scale=args.envname=='scale',
                            scale_exp=args.envname=='scale_exp')

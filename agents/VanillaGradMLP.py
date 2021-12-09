@@ -51,11 +51,11 @@ class VanillaGradMLP(nn.Module):
                 break
             state = torch.FloatTensor(state).unsqueeze(0)
             action_pred = self(state)
-            print(state)
+            #print(state)
             if not self.uses_scale and not self.scale_exp:
                 action_prob = F.softmax(action_pred, dim=-1)
                 dist = distributions.Categorical(action_prob)
-                action = dist.sample()  # todo: counter --> only choose actions every x iterations
+                action = dist.sample()
                 log_prob_action = dist.log_prob(action)
                 log_prob_actions.append(log_prob_action)
                 action = action.item()
@@ -68,6 +68,7 @@ class VanillaGradMLP(nn.Module):
                 dist_box2 = distributions.Normal(torch.reshape(box2_pos, (1, 1)), 0.2)
                 box1_action = dist_box1.sample()
                 box2_action = dist_box2.sample()
+                #print(box1_action.item(), box2_action.item(), "train")
                 action = OrderedDict(
                     [('box1_pos', np.array([[box1_action.item()]])), ('box2_pos', np.array([[box2_action.item()]]))])
                 log_prob_actions.append(dist_box1.log_prob(box1_action) + dist_box2.log_prob(box2_action))
@@ -138,6 +139,7 @@ class VanillaGradMLP(nn.Module):
                     dist_box2 = distributions.Normal(torch.reshape(box2_pos, (1, 1)), 0.2)
                     box1_action = dist_box1.sample()
                     box2_action = dist_box2.sample()
+                    #print(box1_action.item(), box2_action.item())
                     action = OrderedDict(
                         [('box1_pos', np.array([[box1_action.item()]])),
                          ('box2_pos', np.array([[box2_action.item()]]))])
