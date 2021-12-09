@@ -219,7 +219,8 @@ class ScaleExperiment(Framework, gym.Env):
     def step(self, action):
         done = False
         while not done:
-            self.state, reward, done, info = self.internal_step()
+            self.state, reward, done, info = self.internal_step(action)
+            action = None
         return self.state, reward, done, info
 
     def internal_step(self, action=None):
@@ -285,10 +286,8 @@ class ScaleExperiment(Framework, gym.Env):
         elif box == 1:
             self.boxB = self.placeBox(self.boxB, pos)"""
 
-        if box == 0:
-            self.boxA = self.placeBox(self.boxA, box1_pos)
-        elif box == 1:
-            self.boxB = self.placeBox(self.boxB, box2_pos)
+        self.boxA = self.placeBox(self.boxA, box1_pos)
+        self.boxB = self.placeBox(self.boxB, box2_pos)
 
         # Reset the collision points
         self.points = []
