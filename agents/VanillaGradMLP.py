@@ -9,12 +9,14 @@ import torch.distributions as distributions
 from torch import autograd
 import numpy as np
 from collections import OrderedDict
+from ScaleEnvironment.ScaleExperiment import rescale_movement
 
 class VanillaGradMLP(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.5,
-                 lr=0.0005, uses_scale=True):
+                 lr=0.0005, uses_scale=True, scale_exp=False):
         super().__init__()
         self.uses_scale = uses_scale
+        self.scale_exp = scale_exp
         self.fc_1 = nn.Linear(input_dim, hidden_dim)
         if not uses_scale:
             self.fc_2 = nn.Linear(hidden_dim, output_dim)
@@ -49,23 +51,26 @@ class VanillaGradMLP(nn.Module):
                 break
             state = torch.FloatTensor(state).unsqueeze(0)
             action_pred = self(state)
-            if not self.uses_scale:
+            print(state)
+            if not self.uses_scale and not self.scale_exp:
                 action_prob = F.softmax(action_pred, dim=-1)
                 dist = distributions.Categorical(action_prob)
                 action = dist.sample()  # todo: counter --> only choose actions every x iterations
                 log_prob_action = dist.log_prob(action)
                 log_prob_actions.append(log_prob_action)
                 action = action.item()
-            elif self.exp_scale:
+            elif self.scale_exp:
                 box1_pos = torch.tanh(action_pred[0][0])
                 box2_pos = torch.tanh(action_pred[0][1])
+                box1_pos = rescale_movement((-1, 1), box1_pos)
+                box2_pos = rescale_movement((-1, 1), box2_pos)
                 dist_box1 = distributions.Normal(torch.reshape(box1_pos, (1, 1)), 0.2)
                 dist_box2 = distributions.Normal(torch.reshape(box2_pos, (1, 1)), 0.2)
                 box1_action = dist_box1.sample()
                 box2_action = dist_box2.sample()
                 action = OrderedDict(
-                    [('box1_pos', np.array([[box_action.item()]])), ('box2_pos', np.array([[movement_action.item()]]))])
-                log_prob_actions.append(dist_box1.log_prob(box_action) + dist_box2.log_prob(movement_action))
+                    [('box1_pos', np.array([[box1_action.item()]])), ('box2_pos', np.array([[box2_action.item()]]))])
+                log_prob_actions.append(dist_box1.log_prob(box1_action) + dist_box2.log_prob(box2_action))
             else:
                 which_box = torch.sigmoid(action_pred[0][0])
                 movement = torch.tanh(action_pred[0][1])

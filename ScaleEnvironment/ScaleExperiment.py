@@ -47,6 +47,11 @@ STEPSIZE = 0.001
 
 WAITINGITERATIONS = 20  # maximum iterations to wait per episode
 
+def rescale_movement(original_interval, value, to_interval=(-20, +20)):
+    a, b = original_interval
+    c, d = to_interval
+    return c + ((d-c) / (b-a)) * (value-a)
+
 class ScaleExperiment(Framework, gym.Env):
     """You can use this class as an outline for your tests."""
     name = "ScaleExperiment"  # Name of the class to display
@@ -56,7 +61,7 @@ class ScaleExperiment(Framework, gym.Env):
         Initialize all of your objects here.
         Be sure to call the Framework's initializer first.
         """
-        super(Scale, self).__init__(rendering)
+        super(ScaleExperiment, self).__init__(rendering)
 
         self.seed()
 
