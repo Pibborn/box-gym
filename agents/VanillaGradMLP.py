@@ -125,10 +125,22 @@ class VanillaGradMLP(nn.Module):
             with torch.no_grad():
                 action_pred = self(state)
                 #print(self(state), state, action_pred)
-                if not self.uses_scale:
+                if not self.uses_scale and not self.scale_exp:
                     action_prob = F.softmax(action_pred, dim=-1)
                     action = torch.argmax(action_prob, dim=-1)
                     action = action.item()
+                elif self.scale_exp:
+                    box1_pos = torch.tanh(action_pred[0][0])
+                    box2_pos = torch.tanh(action_pred[0][1])
+                    box1_pos = rescale_movement((-1, 1), box1_pos)
+                    box2_pos = rescale_movement((-1, 1), box2_pos)
+                    dist_box1 = distributions.Normal(torch.reshape(box1_pos, (1, 1)), 0.2)
+                    dist_box2 = distributions.Normal(torch.reshape(box2_pos, (1, 1)), 0.2)
+                    box1_action = dist_box1.sample()
+                    box2_action = dist_box2.sample()
+                    action = OrderedDict(
+                        [('box1_pos', np.array([[box1_action.item()]])),
+                         ('box2_pos', np.array([[box2_action.item()]]))])
                 else:
                     which_box = torch.sigmoid(action_pred[0][0])
                     movement = torch.tanh(action_pred[0][1])
