@@ -363,11 +363,11 @@ class ScaleExperiment(Framework, gym.Env):
 
         startingPositionA = - BARLENGTH - 3 * BOXSIZE
         randomDensityA = self.np_random.uniform(4, 6)
-        self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=DENSITY, boxsize=BOXSIZE)
+        self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=randomDensityA, boxsize=BOXSIZE)
 
         startingPositionB = BARLENGTH + 3 * BOXSIZE
         randomDensityB = self.np_random.uniform(4, 6)
-        self.boxB = self.createBox(pos_x=startingPositionB, pos_y=BOXSIZE, density=DENSITY, boxsize=BOXSIZE)
+        self.boxB = self.createBox(pos_x=startingPositionB, pos_y=BOXSIZE, density=randomDensityB, boxsize=BOXSIZE)
 
         self.boxes = [self.boxA, self.boxB]
 

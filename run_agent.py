@@ -13,6 +13,7 @@ from environments.GymEnv import GymEnv
 from ScaleEnvironment.Scale import Scale
 from ScaleEnvironment.ScaleExperiment import ScaleExperiment
 from agents.VanillaGradMLP import VanillaGradMLP
+from agents.QAgent import QAgent
 import argparse
 
 def create_envs(env_str, seed=42, do_render=True):
@@ -52,17 +53,18 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('envname')
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--episodes', type=int, default=10000) # old default: 1000
+    parser.add_argument('--episodes', type=int, default=1000) # old default: 1000
     parser.add_argument('--trials', type=int, default=25)
     parser.add_argument('--printevery', type=int, default=10)
-    parser.add_argument('--discount', type=float, default=0.99)
-    parser.add_argument('--threshold', type=float, default=650) # old default: 475
+    parser.add_argument('--discount', type=float, default=0)
+    parser.add_argument('--threshold', type=float, default=1000) # old default: 475
     parser.add_argument('--render', action='store_true')
     args = parser.parse_args()
     train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=False) # do_render=True
     input_dim, output_dim = get_env_dims(train_env)
     agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=0.2, uses_scale=args.envname=='scale',
                            scale_exp=args.envname=='scale_exp')
+    agent = QAgent(input_dim, 100, output_dim)
     mean_train_rewards, mean_test_rewards = agent.train_loop(train_env, test_env, args)
     plot_rewards(mean_train_rewards, mean_test_rewards, args.threshold)
 
