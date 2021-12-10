@@ -111,4 +111,4 @@ for opt_name in list_options:
                           help='sets the %s option' % (opt_name,))
 
 
-fwSettings, args = parser.parse_args()
+#fwSettings, args = parser.parse_args()
