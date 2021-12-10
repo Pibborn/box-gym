@@ -18,6 +18,7 @@ from environments.GymEnv import GymEnv
 from ScaleEnvironment.Scale import Scale
 from ScaleEnvironment.ScaleExperiment import ScaleExperiment
 from agents.VanillaGradMLP import VanillaGradMLP
+from agents.QAgent import QAgent
 import argparse
 
 TRAINING = 1
@@ -84,7 +85,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('envname')
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--episodes', type=int, default=10000) # old default: 1000
+    parser.add_argument('--episodes', type=int, default=1000) # old default: 1000
     parser.add_argument('--trials', type=int, default=25)
     parser.add_argument('--printevery', type=int, default=10)
     parser.add_argument('--discount', type=float, default=discount) # old default: 0.99
@@ -97,6 +98,8 @@ if __name__ == '__main__':
         input_dim, output_dim = get_env_dims(train_env)
         agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=dropout, uses_scale=args.envname=='scale',
                            scale_exp=args.envname=='scale_exp')
+
+        #agent = QAgent(input_dim, 100, output_dim)
         mean_train_rewards, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=only_testing)
         # save the trained agent
         with open('agent', 'wb') as agent_file:

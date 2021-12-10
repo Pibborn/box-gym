@@ -41,7 +41,7 @@ class VanillaGradMLP(nn.Module):
         self.apply(xavier_init)
 
     def train_episode(self, env, discount_factor, verbose=0):
-        MAXITERATIONS = 20
+        MAXITERATIONS = 120
         self.train()
         log_prob_actions = []
         rewards = []
