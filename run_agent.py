@@ -1,3 +1,4 @@
+import time
 import gym
 import math
 import random
@@ -8,6 +9,10 @@ import matplotlib.pyplot as plt
 from collections import namedtuple, deque
 from itertools import count
 from PIL import Image
+try:
+    import cPickle as pickle
+except ModuleNotFoundError:
+    import pickle
 
 from environments.GymEnv import GymEnv
 from ScaleEnvironment.Scale import Scale
@@ -48,7 +53,22 @@ def plot_rewards(train_rewards, test_rewards, threshold):
     plt.grid()
     plt.show()
 
+def plot_test_rewards(test_rewards, threshold):
+    plt.figure(figsize=(12,8))
+    plt.plot(test_rewards, label='Test Reward')
+    plt.xlabel('Episode', fontsize=20)
+    plt.ylabel('Reward', fontsize=20)
+    plt.hlines(threshold, 0, len(test_rewards), color='r')
+    plt.legend(loc='lower right')
+    plt.grid()
+    plt.show()
+
 if __name__ == '__main__':
+    # 1: run the agent and train and test him, save the agent in a file
+    # 2: load the agent from the file and only test him
+    mode = 1
+
+    start_time = time.time()
     parser = argparse.ArgumentParser()
     parser.add_argument('envname')
     parser.add_argument('--seed', type=int, default=42)
@@ -61,8 +81,25 @@ if __name__ == '__main__':
     args = parser.parse_args()
     train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=False) # do_render=True
     input_dim, output_dim = get_env_dims(train_env)
-    agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=0.2, uses_scale=args.envname=='scale',
-                           scale_exp=args.envname=='scale_exp')
-    mean_train_rewards, mean_test_rewards = agent.train_loop(train_env, test_env, args)
-    plot_rewards(mean_train_rewards, mean_test_rewards, args.threshold)
 
+    if mode == 1:  # train + test new agent
+        agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=0.2, uses_scale=args.envname=='scale',
+                           scale_exp=args.envname=='scale_exp')
+        mean_train_rewards, mean_test_rewards = agent.train_loop(train_env, test_env, args)
+        # save the trained agent
+        with open('agent', 'wb') as agent_file:
+            pickle.dump(agent, agent_file)
+        plot_rewards(mean_train_rewards, mean_test_rewards, args.threshold)
+
+    else:  # load old agent and test him
+        # load the agent
+        with open('agent', 'rb') as agent_file:
+            agent = pickle.load(agent_file)
+
+            # After config_dictionary is read from file
+            train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=False)
+            _, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=True)
+        plot_test_rewards(mean_test_rewards, args.threshold)
+
+    end_time = time.time()
+    print(end_time - start_time)

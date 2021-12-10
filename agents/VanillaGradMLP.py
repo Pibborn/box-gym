@@ -157,7 +157,7 @@ class VanillaGradMLP(nn.Module):
             episode_reward += reward
         return episode_reward
 
-    def train_loop(self, train_env, test_env, config):
+    def train_loop(self, train_env, test_env, config, only_testing = False):
         MAX_EPISODES = config.episodes
         DISCOUNT_FACTOR = config.discount
         N_TRIALS = config.trials
@@ -166,16 +166,27 @@ class VanillaGradMLP(nn.Module):
         train_rewards = []
         test_rewards = []
         for episode in range(1, MAX_EPISODES + 1):
-            loss, train_reward = self.train_episode(train_env, DISCOUNT_FACTOR, verbose=0)
-            test_reward = self.evaluate(test_env)
-            train_rewards.append(train_reward)
-            test_rewards.append(test_reward)
-            mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
-            mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
-            if episode % PRINT_EVERY == 0:
-                print(
-                    f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:5.1f} | Mean Test Rewards: {mean_test_rewards:5.1f} |')
-            if mean_test_rewards >= REWARD_THRESHOLD:
-                print(f'Reached reward threshold in {episode} episodes')
-                break
+            if not only_testing:
+                loss, train_reward = self.train_episode(train_env, DISCOUNT_FACTOR, verbose=0)
+                test_reward = self.evaluate(test_env)
+                train_rewards.append(train_reward)
+                test_rewards.append(test_reward)
+                mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
+                mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
+                if episode % PRINT_EVERY == 0:
+                    print(
+                        f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:5.1f} | Mean Test Rewards: {mean_test_rewards:5.1f} |')
+                if mean_test_rewards >= REWARD_THRESHOLD:
+                    print(f'Reached reward threshold in {episode} episodes')
+                    break
+            else:
+                test_reward = self.evaluate(test_env)
+                test_rewards.append(test_reward)
+                mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
+                if episode % PRINT_EVERY == 0:
+                    print(
+                        f'| Episode: {episode:3} | Mean Test Rewards: {mean_test_rewards:5.1f} |')
+                if mean_test_rewards >= REWARD_THRESHOLD:
+                    print(f'Reached reward threshold in {episode} episodes')
+                    break
         return train_rewards, test_rewards
