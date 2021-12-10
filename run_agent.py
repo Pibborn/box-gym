@@ -1,13 +1,6 @@
-import gym
-import math
-import random
-import numpy as np
 import matplotlib
 matplotlib.rcParams['backend'] = 'WebAgg'
 import matplotlib.pyplot as plt
-from collections import namedtuple, deque
-from itertools import count
-from PIL import Image
 
 from environments.GymEnv import GymEnv
 from ScaleEnvironment.Scale import Scale
