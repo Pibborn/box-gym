@@ -55,8 +55,8 @@ if __name__ == '__main__':
     parser.add_argument('--episodes', type=int, default=10000) # old default: 1000
     parser.add_argument('--trials', type=int, default=25)
     parser.add_argument('--printevery', type=int, default=10)
-    parser.add_argument('--discount', type=float, default=0.99)
-    parser.add_argument('--threshold', type=float, default=650) # old default: 475
+    parser.add_argument('--discount', type=float, default=0.99) # old defaul: 0.99
+    parser.add_argument('--threshold', type=float, default=2000) # old default: 475
     parser.add_argument('--render', action='store_true')
     args = parser.parse_args()
     train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=False) # do_render=True

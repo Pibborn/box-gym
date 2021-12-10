@@ -68,16 +68,17 @@ class ScaleExperiment(Framework, gym.Env):
         # Initialize all of the objects
         self.y, L, a, b = 6.0 + BOXSIZE, 12.0, 1.0, 2.0
 
-        self.counter = 0  # ?
+        self.counter = 0
         self.timesteps = 0
         self.reward = 0
 
         self.rendering = rendering
 
         #########################################################################
+        limit1, limit2 = BARLENGTH - 2 * BOXSIZE, 2 * BOXSIZE
         self.action_space = Dict({
-            "box1_pos": Box(low=-BARLENGTH+2*BOXSIZE, high=-2*BOXSIZE, shape=(1, 1), dtype=float),
-            "box2_pos": Box(low=2*BOXSIZE, high=BARLENGTH-2*BOXSIZE, shape=(1, 1), dtype=float)
+            "box1_pos": Box(low=-limit1, high=-limit2, shape=(1, 1), dtype=float),
+            "box2_pos": Box(low=limit2, high=limit1, shape=(1, 1), dtype=float)
         })
 
         self.observation_space = Dict(spaces={
@@ -136,6 +137,8 @@ class ScaleExperiment(Framework, gym.Env):
                     ((self.screenSize.y - y + self.viewOffset.y) / self.viewZoom))
 
     def createBox(self, pos_x, pos_y=None, density=DENSITY, boxsize=BOXSIZE):
+        """Create a new box on the screen
+        Input values: position as x and y coordinate, density and size of the box"""
         if not pos_y:
             pos_y = self.y
 
@@ -166,6 +169,7 @@ class ScaleExperiment(Framework, gym.Env):
             except Exception as e:
                 print(e)
         self.boxes = []
+        #return
 
     def moveBox(self, box, deltaX, deltaY):
         """Move a box in the world along a given vector (deltaX,deltaY)"""
@@ -206,6 +210,7 @@ class ScaleExperiment(Framework, gym.Env):
         return self.state
 
     def step(self, action):
+        """Actual step function called by the agent"""
         done = False
         while not done:
             self.state, reward, done, info = self.internal_step(action)
@@ -223,12 +228,18 @@ class ScaleExperiment(Framework, gym.Env):
             """Calculates the reward and adds it to the self.reward value"""
             # Calculate reward (Scale in balance?)
             if boxesOnScale():
-                if abs(self.bar.angle) < FAULTTOLERANCE and boxesOnScale():
+                # both boxes on one side: negative reward
+                if (self.boxA.position[0] < 0 and self.boxB.position[0] < 0) \
+                        or (self.boxA.position[0] > 0 and self.boxB.position[0] > 0):
+                    reward = - (0.390258252620697 - abs(self.bar.angle)) / 0.390258252620697
+                    self.timesteps -= 2
+                # box on balance
+                elif abs(self.bar.angle) < FAULTTOLERANCE and boxesOnScale():
                     reward = 1
                 else:
                     reward = (0.390258252620697 - abs(self.bar.angle)) / 0.390258252620697
                 self.reward += reward
-            else:
+            else:   # one or both boxes not on the scale
                 reward = - 1
             return reward
 
@@ -255,8 +266,8 @@ class ScaleExperiment(Framework, gym.Env):
             state = self.resetState().copy()
             #reward = self.reward / self.timesteps
             reward = self.timesteps
-            self.reset()
             self.render()
+            self.reset()
             return state, reward, True, {}
 
         # check if no movement anymore
@@ -264,10 +275,11 @@ class ScaleExperiment(Framework, gym.Env):
             # check if time's up
             if self.counter > WAITINGITERATIONS:
                 # self.render()
-                self.state = self.resetState()
+                state = self.resetState()
                 print("Match:", self.boxA.position[0], self.boxB.position[0], self.bar.angle, getReward())
                 reward = getReward()
-                return self.state, 2 * MAXITERATIONS, True, {}
+                self.reset()
+                return state, 2 * MAXITERATIONS, True, {}
         else:  # no movement --> reset counter
             self.counter = 0
 
@@ -322,7 +334,7 @@ class ScaleExperiment(Framework, gym.Env):
         pygame.quit()
         sys.exit()
 
-    def render(self, mode="human"):  # todo
+    def render(self, mode="human"):
         from gym.envs.classic_control import rendering
         renderer = self.renderer
 
