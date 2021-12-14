@@ -26,6 +26,7 @@ from time import time, sleep
 
 import numpy as np
 import pygame
+
 from Box2D import b2Color, b2Vec2, b2DrawExtended
 from gym.spaces import Discrete, Dict, Box
 from gym.utils import seeding
@@ -36,6 +37,7 @@ import Box2D
 from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape)
 
 import gym
+import torch
 
 BOXSIZE = 1.0
 DENSITY = 5.0
@@ -75,10 +77,9 @@ class ScaleExperiment(Framework, gym.Env):
         self.rendering = rendering
 
         #########################################################################
-        self.action_space = Dict({
-            "box1_pos": Box(low=-BARLENGTH+2*BOXSIZE, high=-2*BOXSIZE, shape=(1, 1), dtype=float),
-            "box2_pos": Box(low=2*BOXSIZE, high=BARLENGTH-2*BOXSIZE, shape=(1, 1), dtype=float)
-        })
+
+        self.action_space = gym.spaces.Box(low=-BARLENGTH, high=+BARLENGTH, shape=(2,),
+                                           dtype=np.float32)
 
         self.observation_space = Dict(spaces={
             "pos1": Box(low=-20., high=20., shape=(1,), dtype=float),
@@ -124,9 +125,9 @@ class ScaleExperiment(Framework, gym.Env):
 
         pos1 = self.boxA.position[0] / math.cos(self.bar.angle)
         pos2 = self.boxB.position[0] / math.cos(self.bar.angle)
-        self.state = [pos1, pos2,
+        self.state = np.array([pos1, pos2,
                       self.bar.angle, self.bar.angularVelocity,
-                      DENSITY, DENSITY]
+                      DENSITY, DENSITY], dtype=np.float32)
 
     def ConvertScreenToWorld(self, x, y):
         """
@@ -200,9 +201,9 @@ class ScaleExperiment(Framework, gym.Env):
         """Resets and returns the current values of the state"""
         pos1 = self.boxA.position[0] / math.cos(self.bar.angle)
         pos2 = self.boxB.position[0] / math.cos(self.bar.angle)
-        self.state = [pos1, pos2,
+        self.state = np.array([pos1, pos2,
                       self.bar.angle, self.bar.angularVelocity,
-                      self.state[4], self.state[5]]  # densities cannot be accessed through the box object ...
+                      self.state[4], self.state[5]], dtype=np.float32)  # densities cannot be accessed through the box object ...
         return self.state
 
     def step(self, action):
@@ -272,20 +273,19 @@ class ScaleExperiment(Framework, gym.Env):
             self.counter = 0
 
         # catch special case that no action was executed
-        if not action:
+        if action is None:
             self.world.Step(timeStep, velocityIterations,
                             positionIterations)
             self.world.ClearForces()
             self.render()
             getReward()
             reward = self.timesteps
-            #reward = self.reward / self.timesteps
             self.state = self.resetState()
             return self.state, reward, False, {}
 
         # extract information from action
-        box1_pos = action["box1_pos"][0, 0]
-        box2_pos = action["box2_pos"][0, 0]
+        box1_pos = action[0]
+        box2_pos = action[1]
 
         # perform action
         self.boxA = self.placeBox(self.boxA, box1_pos)

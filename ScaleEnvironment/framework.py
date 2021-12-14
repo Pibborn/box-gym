@@ -522,10 +522,10 @@ if __name__ == '__main__':
     exit(1)
 
 
-# Your framework classes should follow this format. If it is the 'foobar'
-# framework, then your file should be 'backends/foobar_framework.py' and you
-# should have a class 'FoobarFramework' that subclasses FrameworkBase. Ensure
-# proper capitalization for portability.
+    # Your framework classes should follow this format. If it is the 'foobar'
+    # framework, then your file should be 'backends/foobar_framework.py' and you
+    # should have a class 'FoobarFramework' that subclasses FrameworkBase. Ensure
+    # proper capitalization for portability.
 
 import ScaleEnvironment.backends as backends
 
