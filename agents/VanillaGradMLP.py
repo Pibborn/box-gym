@@ -2,11 +2,9 @@ import math
 
 from agents.initializers import xavier_init
 import torch
-import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-import torchvision.transforms as T
 import torch.distributions as distributions
 from torch import autograd
 import numpy as np
@@ -53,7 +51,6 @@ class VanillaGradMLP(nn.Module):
                 break
             state = torch.FloatTensor(state).unsqueeze(0)
             action_pred = self(state)
-            #print(state)
             if not self.uses_scale and not self.scale_exp:
                 action_prob = F.softmax(action_pred, dim=-1)
                 dist = distributions.Categorical(action_prob)
@@ -72,9 +69,7 @@ class VanillaGradMLP(nn.Module):
                 box2_action = dist_box2.sample()
                 box1_prediction = np.clip(box1_action, -13, -2)  # only allow values within the given action_space
                 box2_prediction = np.clip(box2_action, 2, 13)
-                action = OrderedDict(  # todo: fix
-                    [('box1_pos', np.array([[box1_action.item()]])), ('box2_pos', np.array([[box2_action.item()]]))])
-                    #[('box1_pos', np.array([[box1_prediction]])), ('box2_pos', np.array([[box2_prediction]]))])
+                action = np.array([box1_prediction.item(), box2_prediction.item()])
                 log_prob_actions.append(dist_box1.log_prob(box1_action) + dist_box2.log_prob(box2_action))
                 #log_prob_actions.append(dist_box1.log_prob(box1_prediction) + dist_box2.log_prob(box2_prediction))
             else:
@@ -149,10 +144,7 @@ class VanillaGradMLP(nn.Module):
                     box2_action = dist_box2.sample()
                     box1_prediction = np.clip(box1_action, -13, -2) # only allow values within the given action_space
                     box2_prediction = np.clip(box2_action, 2, 13)
-                    #print(box1_action.item(), box2_action.item())
-                    action = OrderedDict(  # todo: fix
-                        [('box1_pos', np.array([[box1_action.item()]])),
-                         ('box2_pos', np.array([[box2_action.item()]]))])
+                    action = np.array([box1_prediction.item(), box2_prediction.item()])
                     """
                     action = OrderedDict(
                         [('box1_pos', np.array([[box1_prediction]])),

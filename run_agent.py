@@ -14,6 +14,7 @@ from ScaleEnvironment.Scale import Scale
 from ScaleEnvironment.ScaleExperiment import ScaleExperiment
 from agents.VanillaGradMLP import VanillaGradMLP
 from agents.QAgent import QAgent
+from gym.spaces import Dict, Box
 import argparse
 
 TRAINING = 1
@@ -36,10 +37,15 @@ def create_envs(env_str, seed=42, do_render=True, randomness=False):
     return train_env, test_env
 
 def get_env_dims(env):
-    try:
-        return env.observation_space.shape[0], env.action_space.n
-    except TypeError: # if observation_space and action_space are dicts
-        return len(env.observation_space), len(env.action_space)
+    if type(env.action_space) is not Dict:
+        out_dim = int(env.action_space.shape[0])
+    else:
+        out_dim = len(env.action_space)
+    if type(env.observation_space) is not Dict:
+        in_dim = env.observation_space.shape
+    else:
+        in_dim = len(env.observation_space)
+    return in_dim, out_dim
 
 def plot_rewards(train_rewards, test_rewards, threshold):
     plt.figure(figsize=(12,8))
@@ -84,17 +90,16 @@ if __name__ == '__main__':
     parser.add_argument('--trials', type=int, default=25)
     parser.add_argument('--printevery', type=int, default=10)
     parser.add_argument('--discount', type=float, default=discount) # old default: 0.99
-    parser.add_argument('--threshold', type=float, default=2000) # old default: 475
+    parser.add_argument('--threshold', type=float, default=10000) # old default: 475
     parser.add_argument('--render', action='store_true')
     args = parser.parse_args()
 
     if mode == 1:  # train + test new agent
         train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=rendering, randomness=randomness)  # do_render=True
         input_dim, output_dim = get_env_dims(train_env)
-        agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=dropout, uses_scale=args.envname=='scale',
-                           scale_exp=args.envname=='scale_exp')
-
-        #agent = QAgent(input_dim, 100, output_dim)
+        #agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=dropout, uses_scale=args.envname=='scale',
+        #                       scale_exp=args.envname=='scale_exp')
+        agent = QAgent(input_dim, output_dim)
         mean_train_rewards, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=only_testing)
         # save the trained agent
         with open('agent', 'wb') as agent_file:
