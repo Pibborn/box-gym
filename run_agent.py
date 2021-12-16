@@ -20,13 +20,13 @@ from ScaleEnvironment.ScaleExperiment import ScaleExperiment
 from agents.VanillaGradMLP import VanillaGradMLP
 import argparse
 
-def create_envs(env_str, seed=42, do_render=True):
+def create_envs(env_str, seed=42, do_render=True, randomness=False):
     if env_str == 'scale':
-        train_env = Scale(rendering=do_render)
-        test_env = Scale(rendering=do_render)
+        train_env = Scale(rendering=do_render, randomness=randomness)
+        test_env = Scale(rendering=do_render, randomness=randomness)
     elif env_str == 'scale_exp':
-        train_env = ScaleExperiment(rendering=do_render)
-        test_env = ScaleExperiment(rendering=do_render)
+        train_env = ScaleExperiment(rendering=do_render, randomness=randomness)
+        test_env = ScaleExperiment(rendering=do_render, randomness=randomness)
     else:
         train_env = GymEnv(env_str)
         train_env = train_env.create()
@@ -72,17 +72,17 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('envname')
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--episodes', type=int, default=10000) # old default: 1000
+    parser.add_argument('--episodes', type=int, default=20000) # old default: 1000
     parser.add_argument('--trials', type=int, default=25)
     parser.add_argument('--printevery', type=int, default=10)
     parser.add_argument('--discount', type=float, default=0.99) # old defaul: 0.99
     parser.add_argument('--threshold', type=float, default=2000) # old default: 475
     parser.add_argument('--render', action='store_true')
     args = parser.parse_args()
-    train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=False) # do_render=True
-    input_dim, output_dim = get_env_dims(train_env)
 
     if mode == 1:  # train + test new agent
+        train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=False, randomness=False)  # do_render=True
+        input_dim, output_dim = get_env_dims(train_env)
         agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=0.2, uses_scale=args.envname=='scale',
                            scale_exp=args.envname=='scale_exp')
         mean_train_rewards, mean_test_rewards = agent.train_loop(train_env, test_env, args)
@@ -97,7 +97,7 @@ if __name__ == '__main__':
             agent = pickle.load(agent_file)
 
             # After config_dictionary is read from file
-            train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=False)
+            train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=False, randomness=False)
             _, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=True)
         plot_test_rewards(mean_test_rewards, args.threshold)
 

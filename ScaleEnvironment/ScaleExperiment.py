@@ -56,7 +56,7 @@ class ScaleExperiment(Framework, gym.Env):
     """You can use this class as an outline for your tests."""
     name = "ScaleExperiment"  # Name of the class to display
 
-    def __init__(self, rendering = True):
+    def __init__(self, rendering = True, randomness = True):
         """
         Initialize all of your objects here.
         Be sure to call the Framework's initializer first.
@@ -73,6 +73,7 @@ class ScaleExperiment(Framework, gym.Env):
         self.reward = 0
 
         self.rendering = rendering
+        self.randomness = randomness
 
         #########################################################################
         limit1, limit2 = BARLENGTH - 2 * BOXSIZE, 2 * BOXSIZE
@@ -101,12 +102,18 @@ class ScaleExperiment(Framework, gym.Env):
 
         # create Box A
         startingPositionA = - BARLENGTH - 3
-        randomDensityA = 4. + 2 * random.random()  # between 4 and 6
-        self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=DENSITY, boxsize=BOXSIZE)
+        if randomness:
+            randomDensityA = 4. + 2 * random.random()  # between 4 and 6
+            self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=randomDensityA, boxsize=BOXSIZE)
+        else:
+            self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=DENSITY, boxsize=BOXSIZE)
 
         startingPositionB = BARLENGTH + 3
-        randomDensityB = 4. + 2 * random.random()
-        self.boxB = self.createBox(pos_x=startingPositionB, pos_y=BOXSIZE, density=DENSITY, boxsize=BOXSIZE)
+        if randomness:
+            randomDensityB = 4. + 2 * random.random()
+            self.boxB = self.createBox(pos_x=startingPositionB, pos_y=BOXSIZE, density=randomDensityB, boxsize=BOXSIZE)
+        else:
+            self.boxB = self.createBox(pos_x=startingPositionB, pos_y=BOXSIZE, density=DENSITY, boxsize=BOXSIZE)
 
         topCoordinate = Vec2(0, 6)
         self.triangle = self.world.CreateStaticBody(
@@ -373,13 +380,19 @@ class ScaleExperiment(Framework, gym.Env):
     def reset(self):
         self.deleteAllBoxes()
 
-        startingPositionA = - BARLENGTH - 3 * BOXSIZE
-        randomDensityA = self.np_random.uniform(4, 6)
-        self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=DENSITY, boxsize=BOXSIZE)
+        startingPositionA = - BARLENGTH - 3
+        if self.randomness:
+            randomDensityA = 4. + 2 * random.random()  # between 4 and 6
+            self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=randomDensityA, boxsize=BOXSIZE)
+        else:
+            self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=DENSITY, boxsize=BOXSIZE)
 
-        startingPositionB = BARLENGTH + 3 * BOXSIZE
-        randomDensityB = self.np_random.uniform(4, 6)
-        self.boxB = self.createBox(pos_x=startingPositionB, pos_y=BOXSIZE, density=DENSITY, boxsize=BOXSIZE)
+        startingPositionB = BARLENGTH + 3
+        if self.randomness:
+            randomDensityB = 4. + 2 * random.random()
+            self.boxB = self.createBox(pos_x=startingPositionB, pos_y=BOXSIZE, density=randomDensityB, boxsize=BOXSIZE)
+        else:
+            self.boxB = self.createBox(pos_x=startingPositionB, pos_y=BOXSIZE, density=DENSITY, boxsize=BOXSIZE)
 
         self.boxes = [self.boxA, self.boxB]
 
