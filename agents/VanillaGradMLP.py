@@ -1,3 +1,5 @@
+import math
+
 from agents.initializers import xavier_init
 import torch
 import torch
@@ -12,7 +14,7 @@ from collections import OrderedDict
 from ScaleEnvironment.ScaleExperiment import rescale_movement
 
 class VanillaGradMLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.5,
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout=0.5,
                  lr=0.0005, uses_scale=True, scale_exp=False):
         super().__init__()
         self.uses_scale = uses_scale
@@ -68,10 +70,13 @@ class VanillaGradMLP(nn.Module):
                 dist_box2 = distributions.Normal(torch.reshape(box2_pos, (1, 1)), 0.2)
                 box1_action = dist_box1.sample()
                 box2_action = dist_box2.sample()
-                #print(box1_action.item(), box2_action.item(), "train")
-                action = OrderedDict(
+                box1_prediction = np.clip(box1_action, -13, -2)  # only allow values within the given action_space
+                box2_prediction = np.clip(box2_action, 2, 13)
+                action = OrderedDict(  # todo: fix
                     [('box1_pos', np.array([[box1_action.item()]])), ('box2_pos', np.array([[box2_action.item()]]))])
+                    #[('box1_pos', np.array([[box1_prediction]])), ('box2_pos', np.array([[box2_prediction]]))])
                 log_prob_actions.append(dist_box1.log_prob(box1_action) + dist_box2.log_prob(box2_action))
+                #log_prob_actions.append(dist_box1.log_prob(box1_prediction) + dist_box2.log_prob(box2_prediction))
             else:
                 which_box = torch.sigmoid(action_pred[0][0])
                 movement = torch.tanh(action_pred[0][1])
@@ -125,7 +130,6 @@ class VanillaGradMLP(nn.Module):
             state = torch.FloatTensor(state).unsqueeze(0)
             with torch.no_grad():
                 action_pred = self(state)
-                #print(self(state), state, action_pred)
                 if not self.uses_scale and not self.scale_exp:
                     action_prob = F.softmax(action_pred, dim=-1)
                     action = torch.argmax(action_prob, dim=-1)
@@ -133,16 +137,27 @@ class VanillaGradMLP(nn.Module):
                 elif self.scale_exp:
                     box1_pos = torch.tanh(action_pred[0][0])
                     box2_pos = torch.tanh(action_pred[0][1])
+                    """if math.copysign(1, box1_pos) == math.copysign(1, box2_pos):
+                        print(action_pred, box1_pos, box2_pos)
+                    else:
+                        print(action_pred, box1_pos, box2_pos, "Noooo")"""
                     box1_pos = rescale_movement((-1, 1), box1_pos)
                     box2_pos = rescale_movement((-1, 1), box2_pos)
                     dist_box1 = distributions.Normal(torch.reshape(box1_pos, (1, 1)), 0.2)
                     dist_box2 = distributions.Normal(torch.reshape(box2_pos, (1, 1)), 0.2)
                     box1_action = dist_box1.sample()
                     box2_action = dist_box2.sample()
+                    box1_prediction = np.clip(box1_action, -13, -2) # only allow values within the given action_space
+                    box2_prediction = np.clip(box2_action, 2, 13)
                     #print(box1_action.item(), box2_action.item())
-                    action = OrderedDict(
+                    action = OrderedDict(  # todo: fix
                         [('box1_pos', np.array([[box1_action.item()]])),
                          ('box2_pos', np.array([[box2_action.item()]]))])
+                    """
+                    action = OrderedDict(
+                        [('box1_pos', np.array([[box1_prediction]])),
+                         ('box2_pos', np.array([[box2_prediction]]))])
+                    """
                 else:
                     which_box = torch.sigmoid(action_pred[0][0])
                     movement = torch.tanh(action_pred[0][1])

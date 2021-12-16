@@ -56,7 +56,7 @@ class ScaleExperiment(Framework, gym.Env):
     """You can use this class as an outline for your tests."""
     name = "ScaleExperiment"  # Name of the class to display
 
-    def __init__(self, rendering = True, randomness = True):
+    def __init__(self, rendering=True, randomness=True):
         """
         Initialize all of your objects here.
         Be sure to call the Framework's initializer first.
@@ -120,8 +120,6 @@ class ScaleExperiment(Framework, gym.Env):
             position=(0, 0),
             fixtures=fixtureDef(shape=polygonShape(vertices=[(-1, 0), (1, 0), topCoordinate]), density=100)
         )
-
-        # TODO: set triangle green when the scale is leveled, red when the angle is not 0°
 
         self.bar = self.world.CreateDynamicBody(
             position=topCoordinate,
@@ -283,10 +281,11 @@ class ScaleExperiment(Framework, gym.Env):
             if self.counter > WAITINGITERATIONS:
                 # self.render()
                 state = self.resetState()
-                print("Match:", self.boxA.position[0], self.boxB.position[0], self.bar.angle, getReward())
+                print("Match:", self.boxA.position[0], self.boxB.position[0],
+                      self.bar.angle, 2 * MAXITERATIONS * math.cos(self.bar.angle))
                 reward = getReward()
                 self.reset()
-                return state, 2 * MAXITERATIONS, True, {}
+                return state, 2 * MAXITERATIONS * math.cos(self.bar.angle), True, {}
         else:  # no movement --> reset counter
             self.counter = 0
 

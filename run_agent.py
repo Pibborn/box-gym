@@ -20,10 +20,13 @@ from ScaleEnvironment.ScaleExperiment import ScaleExperiment
 from agents.VanillaGradMLP import VanillaGradMLP
 import argparse
 
+TRAINING = 1
+TESTING = 2
+
 def create_envs(env_str, seed=42, do_render=True, randomness=False):
     if env_str == 'scale':
-        train_env = Scale(rendering=do_render, randomness=randomness)
-        test_env = Scale(rendering=do_render, randomness=randomness)
+        train_env = Scale(rendering=do_render)
+        test_env = Scale(rendering=do_render)
     elif env_str == 'scale_exp':
         train_env = ScaleExperiment(rendering=do_render, randomness=randomness)
         test_env = ScaleExperiment(rendering=do_render, randomness=randomness)
@@ -55,6 +58,7 @@ def plot_rewards(train_rewards, test_rewards, threshold):
 
 def plot_test_rewards(test_rewards, threshold):
     plt.figure(figsize=(12,8))
+    #plt.title(f"Randomness = {randomness}, discount = {discount}, dropout = {dropout}", fontdict={'fontsize': 20})
     plt.plot(test_rewards, label='Test Reward')
     plt.xlabel('Episode', fontsize=20)
     plt.ylabel('Reward', fontsize=20)
@@ -66,26 +70,34 @@ def plot_test_rewards(test_rewards, threshold):
 if __name__ == '__main__':
     # 1: run the agent and train and test him, save the agent in a file
     # 2: load the agent from the file and only test him
-    mode = 1
+    mode = TRAINING
+    randomness = False
+    rendering = False
+    if mode == TESTING:
+        only_testing = True
+    else:
+        only_testing = False
+    discount = 0.99  # old default: 0.99
+    dropout = 0.2    # old default: 0.2
 
     start_time = time.time()
     parser = argparse.ArgumentParser()
     parser.add_argument('envname')
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--episodes', type=int, default=20000) # old default: 1000
+    parser.add_argument('--episodes', type=int, default=10000) # old default: 1000
     parser.add_argument('--trials', type=int, default=25)
     parser.add_argument('--printevery', type=int, default=10)
-    parser.add_argument('--discount', type=float, default=0.99) # old defaul: 0.99
+    parser.add_argument('--discount', type=float, default=discount) # old default: 0.99
     parser.add_argument('--threshold', type=float, default=2000) # old default: 475
     parser.add_argument('--render', action='store_true')
     args = parser.parse_args()
 
     if mode == 1:  # train + test new agent
-        train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=False, randomness=False)  # do_render=True
+        train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=rendering, randomness=randomness)  # do_render=True
         input_dim, output_dim = get_env_dims(train_env)
-        agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=0.2, uses_scale=args.envname=='scale',
+        agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=dropout, uses_scale=args.envname=='scale',
                            scale_exp=args.envname=='scale_exp')
-        mean_train_rewards, mean_test_rewards = agent.train_loop(train_env, test_env, args)
+        mean_train_rewards, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=only_testing)
         # save the trained agent
         with open('agent', 'wb') as agent_file:
             pickle.dump(agent, agent_file)
@@ -95,10 +107,9 @@ if __name__ == '__main__':
         # load the agent
         with open('agent', 'rb') as agent_file:
             agent = pickle.load(agent_file)
-
-            # After config_dictionary is read from file
-            train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=False, randomness=False)
-            _, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=True)
+            # use the loaded agent
+            train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=rendering, randomness=randomness)
+            _, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=only_testing)
         plot_test_rewards(mean_test_rewards, args.threshold)
 
     end_time = time.time()
