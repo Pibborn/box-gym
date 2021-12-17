@@ -236,7 +236,7 @@ class ScaleExperiment(Framework, gym.Env):
                 # both boxes on one side: negative reward
                 if (self.boxA.position[0] < 0 and self.boxB.position[0] < 0) \
                         or (self.boxA.position[0] > 0 and self.boxB.position[0] > 0):
-                    reward = - (0.390258252620697 - abs(self.bar.angle)) / 0.390258252620697
+                    reward = -1 #(0.390258252620697 - abs(self.bar.angle)) / 0.390258252620697
                     self.timesteps -= 2
                 # box on balance
                 elif abs(self.bar.angle) < FAULTTOLERANCE and boxesOnScale():

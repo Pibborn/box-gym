@@ -52,7 +52,70 @@ class QAgent():
                     break
             return R
 
-    def train_loop(self, train_env, test_env, config, only_testing=False):
+    def train_loop2(self, train_env, test_env, config, only_testing=False):
+        MAX_EPISODES = config.episodes
+        DISCOUNT_FACTOR = config.discount
+        N_TRIALS = config.trials
+        REWARD_THRESHOLD = config.threshold
+        PRINT_EVERY = config.printevery
+        train_rewards = []
+        test_rewards = []
+        action_size = 2  # train_env.action_space.low.size
+
+        if not only_testing:  # training & testing
+            q_func = pfrl.q_functions.FCQuadraticStateQFunction(
+                self.input_dim,
+                action_size,
+                n_hidden_channels=self.input_dim,
+                n_hidden_layers=self.n_hidden_layers,
+                action_space=train_env.action_space,
+            )
+            # Use the Ornstein-Uhlenbeck process for exploration
+            ou_sigma = (train_env.action_space.high - train_env.action_space.low) * 0.2
+            self.explorer = pfrl.explorers.AdditiveOU(sigma=ou_sigma)
+            self.optimizer = self.optimizer(q_func.parameters())
+            self.agent = pfrl.agents.DQN(
+                q_func,
+                self.optimizer,
+                self.replay_buffer,
+                gamma=self.gamma,
+                explorer=self.explorer,
+                replay_start_size=500,
+                update_interval=1,
+                target_update_interval=1,
+                minibatch_size=32
+            )
+
+            for episode in range(1, MAX_EPISODES + 1):
+                loss, train_reward = self.train_episode(train_env, verbose=0)
+                test_reward = self.evaluate(test_env)
+                train_rewards.append(train_reward)
+                test_rewards.append(test_reward)
+                mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
+                mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
+                if episode % PRINT_EVERY == 0:
+                    print(
+                        f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:5.1f} | Mean Test Rewards: {mean_test_rewards:5.1f} |')
+                    print(self.agent.get_statistics())
+                if mean_test_rewards >= REWARD_THRESHOLD:
+                    print(f'Reached reward threshold in {episode} episodes')
+                    break
+
+        else:  # only testing
+            for episode in range(1, MAX_EPISODES + 1):
+                test_reward = self.evaluate(test_env)
+                test_rewards.append(test_reward)
+                mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
+                if episode % PRINT_EVERY == 0:
+                    print(
+                        f'| Episode: {episode:3} | Mean Test Rewards: {mean_test_rewards:5.1f} |')
+                if mean_test_rewards >= REWARD_THRESHOLD:
+                    print(f'Reached reward threshold in {episode} episodes')
+                    break
+            return [], test_rewards
+        return train_rewards, test_rewards
+
+    def train_loop(self, train_env, test_env, config, only_testing=False): # new version
         MAX_EPISODES = config.episodes
         DISCOUNT_FACTOR = config.discount
         N_TRIALS = config.trials
@@ -61,29 +124,36 @@ class QAgent():
         train_rewards = []
         test_rewards = []
         action_size = 2 #train_env.action_space.low.size
-        # Use NAF to apply DQN to continuous action spaces
-        q_func = pfrl.q_functions.FCQuadraticStateQFunction(
-            self.input_dim,
-            action_size,
-            n_hidden_channels=self.input_dim,
-            n_hidden_layers=self.n_hidden_layers,
-            action_space=train_env.action_space,
-        )
-        # Use the Ornstein-Uhlenbeck process for exploration
-        ou_sigma = (train_env.action_space.high - train_env.action_space.low) * 0.2
-        self.explorer = pfrl.explorers.AdditiveOU(sigma=ou_sigma)
-        self.optimizer = self.optimizer(q_func.parameters())
-        self.agent = pfrl.agents.DQN(
-            q_func,
-            self.optimizer,
-            self.replay_buffer,
-            gamma=self.gamma,
-            explorer=self.explorer,
-            replay_start_size=500,
-            update_interval=1,
-            target_update_interval=1,
-            minibatch_size=32
-        )
+
+        if not only_testing: # training & testing
+            # Use NAF to apply DQN to continuous action spaces
+            q_func = pfrl.q_functions.FCQuadraticStateQFunction(
+                self.input_dim,
+                action_size,
+                n_hidden_channels=self.input_dim,
+                n_hidden_layers=self.n_hidden_layers,
+                action_space=train_env.action_space,
+            )
+            # Use the Ornstein-Uhlenbeck process for exploration
+            ou_sigma = (train_env.action_space.high - train_env.action_space.low) * 0.2
+            self.explorer = pfrl.explorers.AdditiveOU(sigma=ou_sigma)
+            self.optimizer = self.optimizer(q_func.parameters())
+            self.agent = pfrl.agents.DQN(
+                q_func,
+                self.optimizer,
+                self.replay_buffer,
+                gamma=self.gamma,
+                explorer=self.explorer,
+                replay_start_size=500,
+                update_interval=1,
+                target_update_interval=1,
+                minibatch_size=32
+            )
+
+        else:  # only testing
+            # use the agent save in the object
+            pass
+
         agent, history = pfrl.experiments.train_agent_with_evaluation(
             agent=self.agent,
             env=train_env,
@@ -96,7 +166,6 @@ class QAgent():
             train_max_episode_len=120,
             eval_during_episode=True,
         )
-
         eval_rewards = [h['eval_score'] for h in history]
         print(eval_rewards)
 
@@ -114,6 +183,10 @@ class QAgent():
         #    if mean_test_rewards >= REWARD_THRESHOLD:
         #        print(f'Reached reward threshold in {episode} episodes')
         #        break
+        #return train_rewards, test_rewards
+
+        # convert rewards to tuple form (x,y)
+        test_rewards = [(h['cumulative_steps'], h['eval_score']) for h in history]
         return train_rewards, test_rewards
 
 
