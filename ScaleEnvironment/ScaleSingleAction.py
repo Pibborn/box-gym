@@ -54,7 +54,7 @@ def rescale_movement(original_interval, value, to_interval=(-BARLENGTH, +BARLENG
     c, d = to_interval
     return c + ((d-c) / (b-a)) * (value-a)
 
-class ScaleExperiment(Framework, gym.Env):
+class ScaleSingleAction(Framework, gym.Env):
     """You can use this class as an outline for your tests."""
     name = "ScaleExperiment"  # Name of the class to display
 
@@ -63,7 +63,7 @@ class ScaleExperiment(Framework, gym.Env):
         Initialize all of your objects here.
         Be sure to call the Framework's initializer first.
         """
-        super(ScaleExperiment, self).__init__(rendering)
+        super(ScaleSingleAction, self).__init__(rendering)
 
         self.seed()
 
@@ -80,8 +80,8 @@ class ScaleExperiment(Framework, gym.Env):
 
         #########################################################################
         limit1, limit2 = BARLENGTH - 2 * BOXSIZE, 2 * BOXSIZE
-        self.action_space = gym.spaces.Box(low=np.array([-limit1, limit2]), high=np.array([-limit2, limit1]),
-                                           shape=(2,), dtype=np.float32)
+        self.action_space = gym.spaces.Box(low=limit2, high=limit1,
+                                           shape=(1,), dtype=np.float32)
 
         self.observation_space = Dict(spaces={
             "pos1": Box(low=-20., high=20., shape=(1,), dtype=float),
@@ -102,7 +102,7 @@ class ScaleExperiment(Framework, gym.Env):
         self.boxes = []
 
         # create Box A
-        startingPositionA = - BARLENGTH - 3
+        startingPositionA = np.random.uniform(- BARLENGTH + 2 * BOXSIZE, -2 * BOXSIZE)
         if randomness:
             randomDensityA = 4. + 2 * random.random()  # between 4 and 6
             self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=randomDensityA, boxsize=BOXSIZE)
@@ -320,11 +320,10 @@ class ScaleExperiment(Framework, gym.Env):
             return self.state, reward, False, {}
 
         # extract information from action
-        box1_pos = action[0]
-        box2_pos = action[1]
+        box2_pos = action[0]  # todo: fix agent so that the action isn't an array with 2 entries of the same value
 
         # perform action
-        self.boxA = self.placeBox(self.boxA, box1_pos)
+        self.boxA = self.placeBox(self.boxA, self.boxA.position[0])  # now place the box on the scale
         self.boxB = self.placeBox(self.boxB, box2_pos)
 
         # Reset the collision points
@@ -397,7 +396,7 @@ class ScaleExperiment(Framework, gym.Env):
     def reset(self):
         self.deleteAllBoxes()
 
-        startingPositionA = - BARLENGTH - 3
+        startingPositionA = np.random.uniform(- BARLENGTH + 2 * BOXSIZE,  - 2 * BOXSIZE)
         if self.randomness:
             randomDensityA = 4. + 2 * random.random()  # between 4 and 6
             self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=randomDensityA, boxsize=BOXSIZE)
