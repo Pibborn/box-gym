@@ -46,6 +46,17 @@ def create_envs(env_str, seed=42, do_render=True, randomness=False):
         test_env.seed(seed + 1)
     return train_env, test_env
 
+def create_agent(env_str, input_dim, output_dim, dropout=None, discount=None):
+    if env_str == 'scale_exp':
+        #agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=dropout, uses_scale=args.envname=='scale',
+        #                      scale_exp=args.envname=='scale_exp')
+        agent = QAgent(input_dim, output_dim, gamma=discount)
+    elif env_str == 'scale_single':
+        agent = QAgentSingleAction(input_dim, output_dim, gamma=discount)
+    else:
+        return None
+    return agent
+
 
 def get_env_dims(env):
     if type(env.action_space) is not Dict:
@@ -113,7 +124,7 @@ if __name__ == '__main__':
     start_time = time.time()
     parser = argparse.ArgumentParser()
     parser.add_argument('envname')
-    parser.add_argument('--seed', type=int, default=None)  # old default: 42
+    parser.add_argument('--seed', type=int, default=42)  # old default: 42
     parser.add_argument('--episodes', type=int, default=10000)  # old default: 1000
     parser.add_argument('--trials', type=int, default=25)
     parser.add_argument('--printevery', type=int, default=10)
@@ -126,11 +137,7 @@ if __name__ == '__main__':
         train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=rendering,
                                           randomness=randomness)  # do_render=True
         input_dim, output_dim = get_env_dims(train_env)
-
-        # agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=dropout, uses_scale=args.envname=='scale',
-        #                       scale_exp=args.envname=='scale_exp')
-        # agent = QAgent(input_dim, output_dim, gamma=discount)
-        agent = QAgentSingleAction(input_dim, output_dim, gamma=discount)
+        agent = create_agent(args.envname, input_dim, output_dim, dropout=dropout, discount=discount)
 
         mean_train_rewards, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=only_testing)
         # save the trained agent

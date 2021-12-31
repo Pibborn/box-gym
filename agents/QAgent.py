@@ -31,9 +31,6 @@ class QAgent(torch.nn.Module):
 
         while True:
             action = self.agent.act(state)
-            print(action)
-            if abs(action[0] + action[1]) < 0.1:
-                print(action, action[0] + action[1])
             state, reward, done, _ = env.step(action)
             rewards.append(reward)
             episode_reward += reward
@@ -206,22 +203,6 @@ class QAgent(torch.nn.Module):
         )
         eval_rewards = [h['eval_score'] for h in history]
         print(eval_rewards)
-
-        # for episode in range(1, MAX_EPISODES + 1):
-        #    loss, train_reward = self.train_episode(train_env, verbose=0)
-        #    test_reward = self.evaluate(test_env)
-        #    train_rewards.append(train_reward)
-        #    test_rewards.append(test_reward)
-        #    mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
-        #    mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
-        #    if episode % PRINT_EVERY == 0:
-        #        print(
-        #            f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:5.1f} | Mean Test Rewards: {mean_test_rewards:5.1f} |')
-        #        print(self.agent.get_statistics())
-        #    if mean_test_rewards >= REWARD_THRESHOLD:
-        #        print(f'Reached reward threshold in {episode} episodes')
-        #        break
-        # return train_rewards, test_rewards
 
         # convert rewards to tuple form (x,y)
         test_rewards = [(h['cumulative_steps'], h['eval_score']) for h in history]

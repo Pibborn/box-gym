@@ -41,7 +41,7 @@ import torch
 
 BOXSIZE = 1.0
 DENSITY = 5.0
-BARLENGTH = 15
+BARLENGTH = 18
 
 FAULTTOLERANCE = 0.001  # for the angle of the bar
 ANGLE_TRESHOLD = 0.98
@@ -79,7 +79,7 @@ class ScaleExperiment(Framework, gym.Env):
         self.randomness = randomness
 
         #########################################################################
-        limit1, limit2 = BARLENGTH - 2 * BOXSIZE, 2 * BOXSIZE
+        limit1, limit2 = 13, 2 #BARLENGTH - 2 * BOXSIZE, 2 * BOXSIZE
         self.action_space = gym.spaces.Box(low=np.array([-limit1, limit2]), high=np.array([-limit2, limit1]),
                                            shape=(2,), dtype=np.float32)
 
@@ -235,6 +235,8 @@ class ScaleExperiment(Framework, gym.Env):
 
     def step(self, action):
         """Actual step function called by the agent"""
+        # action[0] = np.clip(action[0], - BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE)
+        # action[1] = np.clip(action[1], 2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE)
         done = False
         while not done:
             self.state, reward, done, info = self.internal_step(action)
