@@ -19,6 +19,7 @@ from agents.VanillaGradMLP import VanillaGradMLP
 from agents.QAgent import QAgent
 from gym.spaces import Dict, Box
 import argparse
+import wandb
 
 TRAINING = 1
 TESTING = 2
@@ -102,9 +103,6 @@ if __name__ == '__main__':
     # 1: run the agent and train and test him, save the agent in a file
     # 2: load the agent from the file and only test him
     mode = TRAINING
-    randomness = False  # choose the densities randomly
-    rendering = False
-    overwriting_agent = True
 
     start_time = time.time()
     parser = argparse.ArgumentParser()
@@ -117,25 +115,23 @@ if __name__ == '__main__':
     parser.add_argument('--threshold', type=float, default=20.1)                        # old default: 475
     parser.add_argument('--dropout', type=float, default=0.2)                           # old default: 0.2
     parser.add_argument('--mode', type=int, default=mode)                               # old default: TRAINING
-    parser.add_argument('--randomness', type=bool, default=randomness)                  # old default: False
-    parser.add_argument('--render', action='store_true')
-    parser.add_argument('--rendering', type=bool, default=rendering)                    # old default: False
-    parser.add_argument('--overwriting', type=bool, default=overwriting_agent)          # old default: True
+    parser.add_argument('--randomness', action='store_true')                            # old default: False
+    parser.add_argument('--rendering', action='store_true')
+    parser.add_argument('--overwriting', type=bool, default=True)          # old default: True
+    parser.add_argument('--entity', type=str, default='pibborn')
+    parser.add_argument('--lr', type=float, default=1e-4)
+    parser.add_argument('--test', action='store_true')
     args = parser.parse_args()
 
-    if args.mode == TESTING:
-        only_testing = True
-    else:
-        only_testing = False
+    wandb.init(project="box-gym", entity=args.entity)
+    wandb.config = args
 
-    if args.mode == TRAINING:  # train + test new agent
-        train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.render,
-                                          randomness=args.randomness)
+    if mode == TRAINING:  # train + test new agent
+        train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.rendering,
+                                          randomness=args.randomness)  # do_render=True
         input_dim, output_dim = get_env_dims(train_env)
-        # agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=args.dropout, uses_scale=args.envname=='scale',
-        #                      scale_exp=args.envname=='scale_exp')
-        agent = QAgent(input_dim, output_dim, gamma=args.discount)
-        mean_train_rewards, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=only_testing)
+        agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
+        mean_train_rewards, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=args.test)
         if args.overwriting: # save the trained agent
             with open('agent', 'wb') as agent_file:
                 dill.dump(agent, agent_file)
@@ -147,7 +143,7 @@ if __name__ == '__main__':
             agent = dill.load(agent_file)
             # use the loaded agent
             train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.render, randomness=args.randomness)
-            _, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=only_testing)
+            _, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=args.test)
         plot_test_rewards(mean_test_rewards, args.threshold)
 
     end_time = time.time()

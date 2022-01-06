@@ -79,8 +79,6 @@ class ScaleExperiment(Framework, gym.Env):
         self.randomness = randomness    # random densities or are both the same
         self.actions = actions          # 1: agent chooses one position, 2: agent chooses both positions
 
-        #########################################################################
-        # limit1, limit2 = 13, 2
         limit1, limit2 = BARLENGTH - 2 * BOXSIZE, 2 * BOXSIZE
         if self.actions == 1:    # only choose to place the right box
             self.action_space = gym.spaces.Box(low=limit2, high=limit1,

@@ -3,6 +3,7 @@ import torch
 import torch.nn
 import numpy as np
 import torch.optim as optim
+import wandb
 
 
 class QAgent(torch.nn.Module):
@@ -127,7 +128,7 @@ class QAgent(torch.nn.Module):
             ou_sigma = (train_env.action_space.high - train_env.action_space.low) * 0.2
 
             # self.explorer = pfrl.explorers.AdditiveOU(sigma=ou_sigma)
-            self.explorer = pfrl.explorers.ConstantEpsilonGreedy(epsilon=0.3,
+            self.explorer = pfrl.explorers.ConstantEpsilonGreedy(epsilon=self.epsilon,
                                                                  random_action_func=train_env.action_space.sample)
 
             self.optimizer = self.optimizer(q_func.parameters())
@@ -168,8 +169,12 @@ class QAgent(torch.nn.Module):
                 break
         print()
         if not only_testing:
+            train_success_rate = train_matches / MAX_EPISODES
+            wandb.log({'train_success_rate': train_success_rate})
             print(f"Success rate of train episodes: {train_matches}/{MAX_EPISODES}={(train_matches / MAX_EPISODES) * 100:,.2f}%")
         print(f"Success rate of test episodes: {test_matches}/{MAX_EPISODES}={(test_matches / MAX_EPISODES * 100):,.2f}%")
+        test_success_rate = test_matches / MAX_EPISODES
+        wandb.log({'test_success_rate': test_success_rate})
         return train_rewards, test_rewards
 
 
