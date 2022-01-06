@@ -1,3 +1,5 @@
+from time import sleep
+
 import pfrl
 import torch
 import torch.nn
@@ -65,7 +67,7 @@ class QAgentSingleAction(torch.nn.Module):
 
     def update_policy(self, returns, log_prob_actions, optimizer):
         returns = returns.detach()
-        if log_prob_actions == []: # todo: fix
+        if log_prob_actions == []:  # todo: fix
             return 0
         loss = - (returns * log_prob_actions).sum()
         optimizer.zero_grad()

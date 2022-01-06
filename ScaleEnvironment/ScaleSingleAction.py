@@ -235,10 +235,14 @@ class ScaleSingleAction(Framework, gym.Env):
 
     def step(self, action):
         """Actual step function called by the agent"""
-        done = False
-        while not done:
+        timesteps = 120
+        for _ in range(timesteps):
             self.state, reward, done, info = self.internal_step(action)
             action = None
+            if done:
+                break
+        done = True
+        print(reward)
         return self.state, reward, done, info
 
     def internal_step(self, action=None):
@@ -284,12 +288,11 @@ class ScaleSingleAction(Framework, gym.Env):
 
         # check if test failed --> return reward
         if (abs(self.bar.angle) > ANGLE_TRESHOLD * self.maxAngle
-                #or self.boxA.position[0] > 0
-                #or self.boxB.position[0] < 0
                 or self.timesteps > MAXITERATIONS):
             state = self.resetState().copy()
             #reward = self.reward / self.timesteps
-            reward = self.timesteps
+            #reward = self.timesteps
+            reward = getReward()
             self.render()
             self.reset()
             return state, reward, True, {}
@@ -304,7 +307,8 @@ class ScaleSingleAction(Framework, gym.Env):
                       self.bar.angle, 2 * MAXITERATIONS * math.cos(self.bar.angle))
                 reward = getReward()
                 self.reset()
-                return state, 2 * MAXITERATIONS * math.cos(self.bar.angle), True, {}
+                return state, 1, True, {}
+                # return state, 2 * MAXITERATIONS * math.cos(self.bar.angle), True, {}
         else:  # no movement --> reset counter
             self.counter = 0
 
@@ -314,8 +318,8 @@ class ScaleSingleAction(Framework, gym.Env):
                             positionIterations)
             self.world.ClearForces()
             self.render()
-            getReward()
-            reward = self.timesteps
+            reward = getReward()
+            # reward = self.timesteps
             self.state = self.resetState()
             return self.state, reward, False, {}
 
@@ -338,9 +342,9 @@ class ScaleSingleAction(Framework, gym.Env):
         self.state = self.resetState()
 
         # Calculate reward (Scale in balance?)
-        getReward()
-        reward = self.timesteps
-        #reward == self.reward / self.timesteps
+        reward = getReward()
+        # reward = self.timesteps   # old version
+        # reward == self.reward / self.timesteps
 
         # no movement and in balance --> done
         # velocities = [self.bar.linearVelocity, self.boxA.linearVelocity, self.boxB.linearVelocity]
@@ -397,6 +401,8 @@ class ScaleSingleAction(Framework, gym.Env):
         self.deleteAllBoxes()
 
         startingPositionA = np.random.uniform(- BARLENGTH + 2 * BOXSIZE,  - 2 * BOXSIZE)
+        # startingPositionA = np.random.uniform(- 7 * BOXSIZE, - 2 * BOXSIZE)
+        #startingPositionA = - 5.0
         if self.randomness:
             randomDensityA = 4. + 2 * random.random()  # between 4 and 6
             self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=randomDensityA, boxsize=BOXSIZE)
@@ -434,4 +440,4 @@ class ScaleSingleAction(Framework, gym.Env):
 # See the other testbed examples for more information.
 
 if __name__ == "__main__":
-    main(ScaleExperiment)
+    main(ScaleSingleAction)
