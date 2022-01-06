@@ -43,7 +43,7 @@ class QAgent(torch.nn.Module):
             log_prob_actions = torch.cat(log_prob_actions)
         except RuntimeError:
             pass
-        returns = self.calculate_returns(rewards, self.gamma) # gamma: discount factor
+        returns = self.calculate_returns(rewards, self.gamma)  # gamma: discount factor
         loss = self.update_policy(returns, log_prob_actions, self.optimizer)
         if verbose > 0:
             print(loss, episode_reward)
@@ -65,7 +65,7 @@ class QAgent(torch.nn.Module):
 
     def update_policy(self, returns, log_prob_actions, optimizer):
         returns = returns.detach()
-        if log_prob_actions == []: # todo: fix
+        if log_prob_actions == []:  # todo: fix
             return 0
         loss = - (returns * log_prob_actions).sum()
         optimizer.zero_grad()
@@ -81,6 +81,7 @@ class QAgent(torch.nn.Module):
             done = False
             while not done:
                 action = self.agent.act(obs)
+                #print(action)
                 obs, r, done, _ = env.step(action)
                 R += r
                 t += 1
@@ -98,7 +99,7 @@ class QAgent(torch.nn.Module):
         PRINT_EVERY = config.printevery
         train_rewards = []
         test_rewards = []
-        action_size = 2  # train_env.action_space.low.size
+        action_size = self.output_dim  # train_env.action_space.low.size
 
         if not only_testing:  # training & testing
             q_func = pfrl.q_functions.FCQuadraticStateQFunction(
@@ -117,7 +118,7 @@ class QAgent(torch.nn.Module):
 
             self.optimizer = self.optimizer(q_func.parameters())
             gpu = -1  # 1: use gpu&cpu, -1: only use cpu
-            self.agent = pfrl.agents.DoubleDQN(  # pfrl.agents.DQN(
+            self.agent = pfrl.agents.DQN(  # pfrl.agents.DQN(
                 q_func,
                 self.optimizer,
                 self.replay_buffer,
@@ -157,7 +158,7 @@ class QAgent(torch.nn.Module):
         PRINT_EVERY = config.printevery
         train_rewards = []
         test_rewards = []
-        action_size = 2  # train_env.action_space.low.size
+        action_size = 1  # train_env.action_space.low.size
 
         if not only_testing:  # training & testing
             # Use NAF to apply DQN to continuous action spaces
@@ -170,9 +171,10 @@ class QAgent(torch.nn.Module):
             )
             # Use the Ornstein-Uhlenbeck process for exploration
             ou_sigma = (train_env.action_space.high - train_env.action_space.low) * 0.2
+            self.optimizer = self.optimizer(q_func.parameters())
             self.explorer = pfrl.explorers.AdditiveOU(sigma=ou_sigma)
-            self.explorer = pfrl.explorers.ConstantEpsilonGreedy(epsilon=0.3,
-                                                                 random_action_func=train_env.action_space.sample)
+            # self.explorer = pfrl.explorers.ConstantEpsilonGreedy(epsilon=0.3,
+            #                                                    random_action_func=train_env.action_space.sample)
             self.agent = pfrl.agents.DQN(
                 q_func,
                 self.optimizer,
