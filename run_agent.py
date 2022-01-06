@@ -15,10 +15,8 @@ import matplotlib.pyplot as plt
 from environments.GymEnv import GymEnv
 from ScaleEnvironment.Scale import Scale
 from ScaleEnvironment.ScaleExperiment import ScaleExperiment
-from ScaleEnvironment.ScaleSingleAction import ScaleSingleAction
 from agents.VanillaGradMLP import VanillaGradMLP
 from agents.QAgent import QAgent
-from agents.QAgentSingleAction import QAgentSingleAction
 from gym.spaces import Dict, Box
 import argparse
 
@@ -31,11 +29,14 @@ def create_envs(env_str, seed=42, do_render=True, randomness=False):
         train_env = Scale(rendering=do_render)
         test_env = Scale(rendering=do_render)
     elif env_str == 'scale_exp':
-        train_env = ScaleExperiment(rendering=do_render, randomness=randomness)
-        test_env = ScaleExperiment(rendering=do_render, randomness=randomness)
+        train_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=2)
+        test_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=2)
     elif env_str == 'scale_single':
+        train_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=1)
+        test_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=1)
+        """
         train_env = ScaleSingleAction(rendering=do_render, randomness=randomness)
-        test_env = ScaleSingleAction(rendering=do_render, randomness=randomness)
+        test_env = ScaleSingleAction(rendering=do_render, randomness=randomness)"""
     else:
         train_env = GymEnv(env_str)
         train_env = train_env.create()
@@ -45,17 +46,6 @@ def create_envs(env_str, seed=42, do_render=True, randomness=False):
         train_env.seed(seed)
         test_env.seed(seed + 1)
     return train_env, test_env
-
-def create_agent(env_str, input_dim, output_dim, dropout=None, discount=None):
-    if env_str == 'scale_exp':
-        #agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=dropout, uses_scale=args.envname=='scale',
-        #                      scale_exp=args.envname=='scale_exp')
-        agent = QAgent(input_dim, output_dim, gamma=discount)
-    elif env_str == 'scale_single':
-        agent = QAgentSingleAction(input_dim, output_dim, gamma=discount)
-    else:
-        return None
-    return agent
 
 
 def get_env_dims(env):
@@ -112,7 +102,7 @@ if __name__ == '__main__':
     # 1: run the agent and train and test him, save the agent in a file
     # 2: load the agent from the file and only test him
     mode = TRAINING
-    randomness = True  # choose the densities randomly
+    randomness = False  # choose the densities randomly
     rendering = False
     if mode == TESTING:
         only_testing = True
@@ -137,8 +127,9 @@ if __name__ == '__main__':
         train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=rendering,
                                           randomness=randomness)  # do_render=True
         input_dim, output_dim = get_env_dims(train_env)
-        agent = create_agent(args.envname, input_dim, output_dim, dropout=dropout, discount=discount)
-
+        #agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=dropout, uses_scale=args.envname=='scale',
+        #                      scale_exp=args.envname=='scale_exp')
+        agent = QAgent(input_dim, output_dim, gamma=discount)
         mean_train_rewards, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=only_testing)
         # save the trained agent
         with open('agent', 'wb') as agent_file:
