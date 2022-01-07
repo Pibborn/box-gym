@@ -128,11 +128,12 @@ if __name__ == '__main__':
     parser.add_argument('--trials', type=int, default=25)
     parser.add_argument('--printevery', type=int, default=10)
     parser.add_argument('--discount', type=float, default=discount)  # old default: 0.99
-    parser.add_argument('--threshold', type=float, default=4000)  # old default: 475
+    parser.add_argument('--threshold', type=float, default=0.95)  # old default: 475
     parser.add_argument('--render', action='store_true')
     parser.add_argument('--entity', type=str, default='pibborn')
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--randomness', action='store_true')
+    parser.add_argument('--plot', action='store_true')
     args = parser.parse_args()
 
     wandb.init(project="box-gym", entity=args.entity)
@@ -147,7 +148,8 @@ if __name__ == '__main__':
         # save the trained agent
         with open('agent', 'wb') as agent_file:
             dill.dump(agent, agent_file)
-        plot_rewards(mean_train_rewards, mean_test_rewards, args.threshold)
+        if args.plot:
+            plot_rewards(mean_train_rewards, mean_test_rewards, args.threshold)
 
     else:  # load old agent and test him
         # load the agent
@@ -156,7 +158,8 @@ if __name__ == '__main__':
             # use the loaded agent
             train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=rendering, randomness=args.randomness)
             _, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=only_testing)
-        plot_test_rewards(mean_test_rewards, args.threshold)
+        if args.plot:
+            plot_test_rewards(mean_test_rewards, args.threshold)
 
     end_time = time.time()
     print(end_time - start_time)

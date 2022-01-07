@@ -3,6 +3,7 @@ import torch
 import torch.nn
 import numpy as np
 import torch.optim as optim
+import wandb
 
 
 class QAgent(torch.nn.Module):
@@ -109,6 +110,7 @@ class QAgent(torch.nn.Module):
                 n_hidden_layers=self.n_hidden_layers,
                 action_space=train_env.action_space,
             )
+            wandb.watch(q_func)
             # Use the Ornstein-Uhlenbeck process for exploration
             ou_sigma = (train_env.action_space.high - train_env.action_space.low) * 0.2
 
@@ -124,7 +126,7 @@ class QAgent(torch.nn.Module):
                 self.replay_buffer,
                 gamma=DISCOUNT_FACTOR,  # self.gamma
                 explorer=self.explorer,
-                replay_start_size=500,
+                replay_start_size=128,
                 update_interval=1,
                 target_update_interval=1,
                 minibatch_size=32,
@@ -136,9 +138,14 @@ class QAgent(torch.nn.Module):
                 loss, train_reward = self.train_episode(train_env, verbose=0)
                 train_rewards.append(train_reward)
                 mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
+                wandb.log({'train_reward': mean_train_rewards})
             test_reward = self.evaluate(test_env)
             test_rewards.append(test_reward)
             mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
+            wandb.log({'test_rewards': mean_test_rewards})
+            stats = self.agent.get_statistics()
+            wandb.log({'average_q': stats[0][1]})
+            wandb.log({'loss': stats[1][1]})
             if episode % PRINT_EVERY == 0:
                 if not only_testing:
                     print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:5.1f} | Mean Test Rewards: {mean_test_rewards:5.1f} |')
