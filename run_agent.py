@@ -117,7 +117,7 @@ if __name__ == '__main__':
     parser.add_argument('--randomness', action='store_true')                            # old default: False
     parser.add_argument('--rendering', action='store_true')
     parser.add_argument('--overwriting', type=bool, default=True)          # old default: True
-    parser.add_argument('--entity', type=str, default='pibborn')
+    parser.add_argument('--entity', type=str, default='jgu-wandb')
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--plot', action='store_true')
