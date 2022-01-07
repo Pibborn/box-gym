@@ -75,12 +75,12 @@ class ScaleExperiment(Framework, gym.Env):
         self.timesteps = 0
         self.reward = 0
 
-        self.rendering = rendering
-        self.randomness = randomness
-        self.actions = actions
+        self.rendering = rendering      # should the simulation be rendered or not
+        self.randomness = randomness    # random densities or are both the same
+        self.actions = actions          # 1: agent chooses one position, 2: agent chooses both positions
 
         #########################################################################
-        # limit1, limit2 = 13, 2 #BARLENGTH - 2 * BOXSIZE, 2 * BOXSIZE
+        # limit1, limit2 = 13, 2
         limit1, limit2 = BARLENGTH - 2 * BOXSIZE, 2 * BOXSIZE
         if self.actions == 1:    # only choose to place the right box
             self.action_space = gym.spaces.Box(low=limit2, high=limit1,
@@ -138,6 +138,7 @@ class ScaleExperiment(Framework, gym.Env):
 
         self.joint = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=self.triangle, anchor=topCoordinate)
 
+        # calculate positions = distance to the center of the bar
         pos1 = self.boxA.position[0] / math.cos(self.bar.angle)
         pos2 = self.boxB.position[0] / math.cos(self.bar.angle)
 
@@ -283,8 +284,8 @@ class ScaleExperiment(Framework, gym.Env):
         hz = 60.
         velocityIterations = 8
         positionIterations = 3
-        velocityIterations *= 1
-        positionIterations *= 1
+        velocityIterations *= 2
+        positionIterations *= 2
 
         if hz > 0.0:
             timeStep = 1.0 / hz
@@ -311,8 +312,7 @@ class ScaleExperiment(Framework, gym.Env):
             if self.counter > WAITINGITERATIONS:
                 # self.render()
                 state = self.resetState()
-                print("Match:", self.boxA.position[0], self.boxB.position[0],
-                      self.bar.angle, 20 * math.cos(self.bar.angle))
+                print(f"Match: {self.boxA.position[0]}\t{self.boxB.position[0]}\t{self.bar.angle}\t{20 * math.cos(self.bar.angle)}")
                 reward = getReward()
                 self.reset()
                 return state, 20 * math.cos(self.bar.angle), True, {}

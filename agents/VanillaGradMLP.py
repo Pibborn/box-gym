@@ -82,6 +82,11 @@ class VanillaGradMLP(nn.Module):
                 action = OrderedDict([('box', np.array([[box_action.item()]])), ('delta_pos', np.array([[movement_action.item()]]))])
                 log_prob_actions.append(dist_box.log_prob(box_action) + dist_movement.log_prob(movement_action))
             state, reward, done, _ = env.step(action)
+            if reward >= 1: #todo: fix --> should be for both boxes
+                print(
+                    f"end position Box 1: {state[0]}   \taction input: {action[0]}    \t{float(str((state[0] - action[0]) / action[0] * 100)[:5])}% difference)")
+                print(
+                    f"end position Box 2: {state[1]}   \taction input: {action[0]}    \t{float(str((state[1] - action[1]) / action[1] * 100)[:5])}% difference)")
             rewards.append(reward)
             episode_reward += reward
         try:
@@ -132,10 +137,6 @@ class VanillaGradMLP(nn.Module):
                 elif self.scale_exp:
                     box1_pos = torch.tanh(action_pred[0][0])
                     box2_pos = torch.tanh(action_pred[0][1])
-                    """if math.copysign(1, box1_pos) == math.copysign(1, box2_pos):
-                        print(action_pred, box1_pos, box2_pos)
-                    else:
-                        print(action_pred, box1_pos, box2_pos, "Noooo")"""
                     box1_pos = rescale_movement((-1, 1), box1_pos)
                     box2_pos = rescale_movement((-1, 1), box2_pos)
                     dist_box1 = distributions.Normal(torch.reshape(box1_pos, (1, 1)), 0.2)
@@ -145,11 +146,6 @@ class VanillaGradMLP(nn.Module):
                     box1_prediction = np.clip(box1_action, -13, -2) # only allow values within the given action_space
                     box2_prediction = np.clip(box2_action, 2, 13)
                     action = np.array([box1_prediction.item(), box2_prediction.item()])
-                    """
-                    action = OrderedDict(
-                        [('box1_pos', np.array([[box1_prediction]])),
-                         ('box2_pos', np.array([[box2_prediction]]))])
-                    """
                 else:
                     which_box = torch.sigmoid(action_pred[0][0])
                     movement = torch.tanh(action_pred[0][1])
@@ -161,6 +157,11 @@ class VanillaGradMLP(nn.Module):
                         [('box', np.array([[box_action]])), ('delta_pos', np.array([[movement_action]]))]
                     )
             state, reward, done, _ = env.step(action)
+            if reward >= 1:
+                print(
+                    f"end position Box 1: {state[0]}   \taction input: {action[0]}    \t{float(str((state[0] - action[0]) / action[0] * 100)[:5])}% difference)")
+                print(
+                    f"end position Box 2: {state[1]}   \taction input: {action[0]}    \t{float(str((state[1] - action[1]) / action[1] * 100)[:5])}% difference)")
             episode_reward += reward
         return episode_reward
 
@@ -172,12 +173,18 @@ class VanillaGradMLP(nn.Module):
         PRINT_EVERY = config.printevery
         train_rewards = []
         test_rewards = []
+        train_matches = 0
+        test_matches = 0
         for episode in range(1, MAX_EPISODES + 1):
             if not only_testing:
                 loss, train_reward = self.train_episode(train_env, DISCOUNT_FACTOR, verbose=0)
                 test_reward = self.evaluate(test_env)
                 train_rewards.append(train_reward)
                 test_rewards.append(test_reward)
+                if train_reward >= 1:
+                    train_matches += 1
+                if test_reward >= 1:
+                    test_matches += 1
                 mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
                 mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
                 if episode % PRINT_EVERY == 0:
@@ -189,6 +196,8 @@ class VanillaGradMLP(nn.Module):
             else:
                 test_reward = self.evaluate(test_env)
                 test_rewards.append(test_reward)
+                if test_reward >= 1:
+                    test_matches += 1
                 mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
                 if episode % PRINT_EVERY == 0:
                     print(
@@ -196,4 +205,10 @@ class VanillaGradMLP(nn.Module):
                 if mean_test_rewards >= REWARD_THRESHOLD:
                     print(f'Reached reward threshold in {episode} episodes')
                     break
+        print()
+        if not only_testing:
+            print(
+                f"Success rate of train episodes: {train_matches}/{MAX_EPISODES}={(train_matches / MAX_EPISODES) * 100:,.2f}%")
+        print(
+            f"Success rate of test episodes: {test_matches}/{MAX_EPISODES}={(test_matches / MAX_EPISODES * 100):,.2f}%")
         return train_rewards, test_rewards

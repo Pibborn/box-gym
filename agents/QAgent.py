@@ -13,7 +13,7 @@ class QAgent(torch.nn.Module):
         self.gamma = gamma  # discount factor
         self.lr = lr
         self.epsilon = epsilon
-        self.replay_buffer = pfrl.replay_buffers.ReplayBuffer(capacity=10 ** 6)
+        self.replay_buffer = pfrl.replay_buffers.ReplayBuffer(capacity=10 ** 8)
         self.optimizer = optim.Adam
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -32,6 +32,9 @@ class QAgent(torch.nn.Module):
         while True:
             action = self.agent.act(state)
             state, reward, done, _ = env.step(action)
+            if reward >= 1:
+                print(
+                    f"end position: {state[1]}   \taction input: {action[0]}    \t{float(str((state[1] - action[0]) / action[0] * 100)[:5])}% difference)")
             rewards.append(reward)
             episode_reward += reward
             t += 1
@@ -75,18 +78,27 @@ class QAgent(torch.nn.Module):
 
     def evaluate(self, env):
         with self.agent.eval_mode():
-            obs = torch.tensor(env.reset())
+            state = torch.tensor(env.reset())
             R = 0  # return (sum of rewards)
             t = 0  # time step
             done = False
             while not done:
-                action = self.agent.act(obs)
+                action = self.agent.act(state)
                 #print(action)
-                obs, r, done, _ = env.step(action)
-                R += r
+                state, reward, done, _ = env.step(action)
+                if reward >= 1:
+                    if self.output_dim == 1:
+                        print(
+                            f"end position: {state[1]}   \taction input: {action[0]}    \t{float(str((state[1] - action[0]) / action[0] * 100)[:5])}% difference)")
+                    elif self.output_dim == 2:
+                        print(
+                            f"end position Box 1: {state[0]}   \taction input: {action[0]}    \t{float(str((state[0] - action[0]) / action[0] * 100)[:5])}% difference)")
+                        print(
+                            f"end position Box 2: {state[1]}   \taction input: {action[0]}    \t{float(str((state[1] - action[1]) / action[1] * 100)[:5])}% difference)")
+                R += reward
                 t += 1
                 reset = t == 200
-                self.agent.observe(obs, r, done, reset)
+                self.agent.observe(state, reward, done, reset)
                 if done or reset:
                     break
             return R
@@ -99,6 +111,8 @@ class QAgent(torch.nn.Module):
         PRINT_EVERY = config.printevery
         train_rewards = []
         test_rewards = []
+        train_matches = 0  # count all perfectly balanced episodes
+        test_matches = 0
         action_size = self.output_dim  # train_env.action_space.low.size
 
         if not only_testing:  # training & testing
@@ -112,9 +126,9 @@ class QAgent(torch.nn.Module):
             # Use the Ornstein-Uhlenbeck process for exploration
             ou_sigma = (train_env.action_space.high - train_env.action_space.low) * 0.2
 
-            self.explorer = pfrl.explorers.AdditiveOU(sigma=ou_sigma)
-            # self.explorer = pfrl.explorers.ConstantEpsilonGreedy(epsilon=0.3,
-            #                                                     random_action_func=train_env.action_space.sample)
+            # self.explorer = pfrl.explorers.AdditiveOU(sigma=ou_sigma)
+            self.explorer = pfrl.explorers.ConstantEpsilonGreedy(epsilon=0.3,
+                                                                 random_action_func=train_env.action_space.sample)
 
             self.optimizer = self.optimizer(q_func.parameters())
             gpu = -1  # 1: use gpu&cpu, -1: only use cpu
@@ -134,9 +148,13 @@ class QAgent(torch.nn.Module):
         for episode in range(1, MAX_EPISODES + 1):
             if not only_testing:
                 loss, train_reward = self.train_episode(train_env, verbose=0)
+                if train_reward >= 1:   #todo: fix to another value
+                    train_matches += 1
                 train_rewards.append(train_reward)
                 mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
             test_reward = self.evaluate(test_env)
+            if test_reward >= 1:
+                test_matches += 1
             test_rewards.append(test_reward)
             mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
             if episode % PRINT_EVERY == 0:
@@ -148,66 +166,10 @@ class QAgent(torch.nn.Module):
             if mean_test_rewards >= REWARD_THRESHOLD:
                 print(f'Reached reward threshold in {episode} episodes')
                 break
-        return train_rewards, test_rewards
-
-    def train_loop2(self, train_env, test_env, config, only_testing=False):  # new version
-        MAX_EPISODES = config.episodes
-        DISCOUNT_FACTOR = config.discount
-        N_TRIALS = config.trials
-        REWARD_THRESHOLD = config.threshold
-        PRINT_EVERY = config.printevery
-        train_rewards = []
-        test_rewards = []
-        action_size = 1  # train_env.action_space.low.size
-
-        if not only_testing:  # training & testing
-            # Use NAF to apply DQN to continuous action spaces
-            q_func = pfrl.q_functions.FCQuadraticStateQFunction(
-                self.input_dim,
-                action_size,
-                n_hidden_channels=self.input_dim,
-                n_hidden_layers=self.n_hidden_layers,
-                action_space=train_env.action_space,
-            )
-            # Use the Ornstein-Uhlenbeck process for exploration
-            ou_sigma = (train_env.action_space.high - train_env.action_space.low) * 0.2
-            self.optimizer = self.optimizer(q_func.parameters())
-            self.explorer = pfrl.explorers.AdditiveOU(sigma=ou_sigma)
-            # self.explorer = pfrl.explorers.ConstantEpsilonGreedy(epsilon=0.3,
-            #                                                    random_action_func=train_env.action_space.sample)
-            self.agent = pfrl.agents.DQN(
-                q_func,
-                self.optimizer,
-                self.replay_buffer,
-                gamma=self.gamma,
-                explorer=self.explorer,
-                replay_start_size=500,
-                update_interval=1,
-                target_update_interval=1,
-                minibatch_size=32
-            )
-
-        else:  # only testing
-            # use the agent save in the object
-            pass
-
-        agent, history = pfrl.experiments.train_agent_with_evaluation(
-            agent=self.agent,
-            env=train_env,
-            steps=MAX_EPISODES,
-            eval_n_steps=None,
-            eval_n_episodes=N_TRIALS,
-            eval_interval=100,
-            outdir='results/',
-            eval_env=test_env,
-            train_max_episode_len=120,
-            eval_during_episode=True,
-        )
-        eval_rewards = [h['eval_score'] for h in history]
-        print(eval_rewards)
-
-        # convert rewards to tuple form (x,y)
-        test_rewards = [(h['cumulative_steps'], h['eval_score']) for h in history]
+        print()
+        if not only_testing:
+            print(f"Success rate of train episodes: {train_matches}/{MAX_EPISODES}={(train_matches / MAX_EPISODES) * 100:,.2f}%")
+        print(f"Success rate of test episodes: {test_matches}/{MAX_EPISODES}={(test_matches / MAX_EPISODES * 100):,.2f}%")
         return train_rewards, test_rewards
 
 

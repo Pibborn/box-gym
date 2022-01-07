@@ -104,36 +104,41 @@ if __name__ == '__main__':
     mode = TRAINING
     randomness = False  # choose the densities randomly
     rendering = False
-    if mode == TESTING:
-        only_testing = True
-    else:
-        only_testing = False
-    discount = 0.99  # old default: 0.99
-    dropout = 0.2  # old default: 0.2
+    overwriting_agent = True
 
     start_time = time.time()
     parser = argparse.ArgumentParser()
     parser.add_argument('envname')
-    parser.add_argument('--seed', type=int, default=42)  # old default: 42
-    parser.add_argument('--episodes', type=int, default=10000)  # old default: 1000
+    parser.add_argument('--seed', type=int, default=42)                                 # old default: 42
+    parser.add_argument('--episodes', type=int, default=10000)                          # old default: 1000
     parser.add_argument('--trials', type=int, default=25)
-    parser.add_argument('--printevery', type=int, default=10)
-    parser.add_argument('--discount', type=float, default=discount)  # old default: 0.99
-    parser.add_argument('--threshold', type=float, default=4000)  # old default: 475
+    parser.add_argument('--printevery', type=int, default=1000)                         # old default: 10
+    parser.add_argument('--discount', type=float, default=0.99)                         # old default: 0.99
+    parser.add_argument('--threshold', type=float, default=20.1)                        # old default: 475
+    parser.add_argument('--dropout', type=float, default=0.2)                           # old default: 0.2
+    parser.add_argument('--mode', type=int, default=mode)                               # old default: TRAINING
+    parser.add_argument('--randomness', type=bool, default=randomness)                  # old default: False
     parser.add_argument('--render', action='store_true')
+    parser.add_argument('--rendering', type=bool, default=rendering)                    # old default: False
+    parser.add_argument('--overwriting', type=bool, default=overwriting_agent)          # old default: True
     args = parser.parse_args()
 
-    if mode == TRAINING:  # train + test new agent
-        train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=rendering,
-                                          randomness=randomness)  # do_render=True
+    if args.mode == TESTING:
+        only_testing = True
+    else:
+        only_testing = False
+
+    if args.mode == TRAINING:  # train + test new agent
+        train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.render,
+                                          randomness=args.randomness)
         input_dim, output_dim = get_env_dims(train_env)
-        #agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=dropout, uses_scale=args.envname=='scale',
+        # agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=args.dropout, uses_scale=args.envname=='scale',
         #                      scale_exp=args.envname=='scale_exp')
-        agent = QAgent(input_dim, output_dim, gamma=discount)
+        agent = QAgent(input_dim, output_dim, gamma=args.discount)
         mean_train_rewards, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=only_testing)
-        # save the trained agent
-        with open('agent', 'wb') as agent_file:
-            dill.dump(agent, agent_file)
+        if args.overwriting: # save the trained agent
+            with open('agent', 'wb') as agent_file:
+                dill.dump(agent, agent_file)
         plot_rewards(mean_train_rewards, mean_test_rewards, args.threshold)
 
     else:  # load old agent and test him
@@ -141,7 +146,7 @@ if __name__ == '__main__':
         with open('agent', 'rb') as agent_file:
             agent = dill.load(agent_file)
             # use the loaded agent
-            train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=rendering, randomness=randomness)
+            train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.render, randomness=args.randomness)
             _, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=only_testing)
         plot_test_rewards(mean_test_rewards, args.threshold)
 
