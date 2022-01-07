@@ -114,13 +114,13 @@ if __name__ == '__main__':
     parser.add_argument('--discount', type=float, default=0.99)                         # old default: 0.99
     parser.add_argument('--threshold', type=float, default=20.1)                        # old default: 475
     parser.add_argument('--dropout', type=float, default=0.2)                           # old default: 0.2
-    parser.add_argument('--mode', type=int, default=mode)                               # old default: TRAINING
     parser.add_argument('--randomness', action='store_true')                            # old default: False
     parser.add_argument('--rendering', action='store_true')
     parser.add_argument('--overwriting', type=bool, default=True)          # old default: True
     parser.add_argument('--entity', type=str, default='pibborn')
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--test', action='store_true')
+    parser.add_argument('--plot', action='store_true')
     args = parser.parse_args()
 
     wandb.init(project="box-gym", entity=args.entity)
@@ -132,19 +132,22 @@ if __name__ == '__main__':
         input_dim, output_dim = get_env_dims(train_env)
         agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
         mean_train_rewards, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=args.test)
-        if args.overwriting: # save the trained agent
-            with open('agent', 'wb') as agent_file:
-                dill.dump(agent, agent_file)
-        plot_rewards(mean_train_rewards, mean_test_rewards, args.threshold)
+        # save the trained agent
+        with open('agent', 'wb') as agent_file:
+            dill.dump(agent, agent_file)
+        if args.plot:
+            plot_rewards(mean_train_rewards, mean_test_rewards, args.threshold)
 
     else:  # load old agent and test him
         # load the agent
         with open('agent', 'rb') as agent_file:
             agent = dill.load(agent_file)
             # use the loaded agent
-            train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.render, randomness=args.randomness)
+            train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.rendering,
+                                              randomness=args.randomness)
             _, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=args.test)
-        plot_test_rewards(mean_test_rewards, args.threshold)
+        if args.plot:
+            plot_test_rewards(mean_test_rewards, args.threshold)
 
     end_time = time.time()
     print(end_time - start_time)
