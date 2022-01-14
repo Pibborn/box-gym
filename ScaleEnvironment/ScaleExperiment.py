@@ -28,6 +28,7 @@ import numpy as np
 import pygame
 
 from Box2D import b2Color, b2Vec2, b2DrawExtended
+from gym import spaces
 from gym.spaces import Discrete, Dict, Box
 from gym.utils import seeding
 from pyglet.math import Vec2
@@ -67,6 +68,8 @@ class ScaleExperiment(Framework, gym.Env):
 
         self.seed()
 
+        self.num_envs = 1   # for stable-baseline3
+
         # Initialize all of the objects
         self.y, L, a, b = 6.0 + BOXSIZE, 12.0, 1.0, 2.0
         HEIGHT = 6  # height of the bar joint
@@ -87,15 +90,18 @@ class ScaleExperiment(Framework, gym.Env):
             self.action_space = gym.spaces.Box(low=np.array([-limit1, limit2]), high=np.array([-limit2, limit1]),
                                            shape=(2,), dtype=np.float32)
 
-        self.observation_space = Dict(spaces={
+        self.observation_space = spaces.Dict(spaces={
             "pos1": Box(low=-20., high=20., shape=(1,), dtype=float),
             "pos2": Box(low=-20., high=20., shape=(1,), dtype=float),
-            "angle": Box(low=-390258252620697, high=390258252620697, shape=(1,), dtype=float),
+            "angle": Box(low=-0.390258252620697, high=0.390258252620697, shape=(1,), dtype=float),
             # angular velocity of the bar, negative: moves to the right, positive: moves to the left
             "vel": Box(low=-2., high=2., shape=(1,), dtype=float),
             "density1": Box(low=4., high=6., shape=(1,), dtype=float),
             "density2": Box(low=4., high=6., shape=(1,), dtype=float),
         })
+
+        """self.observation_space = spaces.Box(low=np.array([-20, -20, -0.390258252620697, -2., 4., 4.]), high=np.array([20, 20, 0.390258252620697, 2., 6., 6.]),
+                                           shape=(6,), dtype=np.float32)"""
 
         # setting up the objects on the screen
         # The ground

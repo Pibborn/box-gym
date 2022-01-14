@@ -84,9 +84,9 @@ class VanillaGradMLP(nn.Module):
             state, reward, done, _ = env.step(action)
             if reward >= 1: #todo: fix --> should be for both boxes
                 print(
-                    f"end position Box 1: {state[0]}   \taction input: {action[0]}    \t{float(str((state[0] - action[0]) / action[0] * 100)[:5])}% difference)")
+                    f"end position Box 1: {state[0]}   \taction input: {action[0]}    \t{float(str((state[0] - action[0]) / action[0] * 100)[:5])}% difference")
                 print(
-                    f"end position Box 2: {state[1]}   \taction input: {action[0]}    \t{float(str((state[1] - action[1]) / action[1] * 100)[:5])}% difference)")
+                    f"end position Box 2: {state[1]}   \taction input: {action[0]}    \t{float(str((state[1] - action[1]) / action[1] * 100)[:5])}% difference")
             rewards.append(reward)
             episode_reward += reward
         try:
