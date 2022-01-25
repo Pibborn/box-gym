@@ -4,12 +4,13 @@ from agents.StableBaselinesAgents.StableBaselinesAgent import StableBaselinesAge
 
 
 class SACAgent(StableBaselinesAgent):
-    def __init__(self, input_dim, output_dim):
+    def __init__(self, input_dim, output_dim, lr=1e-4):
         super().__init__(input_dim, output_dim)
         self.agent = None
+        self.lr = lr
         pass
 
-    def create_model(self, train_env, policy='MlpPolicy', verbose=1, use_sde=False):
+    def create_model(self, train_env, policy='MlpPolicy', verbose=1, use_sde=False, lr=1e-4):
         """self.agent = stable_baselines3.sac.SAC("MlpPolicy", train_env, learning_rate=0.0003, buffer_size=1000000, learning_starts=100,
                                                      batch_size=256, tau=0.005, gamma=DISCOUNT_FACTOR, train_freq=1, gradient_steps=1,
                                                      action_noise=None, replay_buffer_class=self.replay_buffer, replay_buffer_kwargs=None,
@@ -18,7 +19,7 @@ class SACAgent(StableBaselinesAgent):
                                                      tensorboard_log=None, create_eval_env=False, policy_kwargs=None, verbose=0,
                                                      seed=None, device='auto', _init_setup_model=True)"""
         self.agent = SAC(policy=policy, env=train_env, verbose=verbose, use_sde=use_sde,
-                         tensorboard_log='results/temp')
+                         tensorboard_log='results/temp', learning_rate=self.lr)
         return self.agent
 
     def save_agent(self, location):

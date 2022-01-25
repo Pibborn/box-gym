@@ -125,9 +125,9 @@ if __name__ == '__main__':
         input_dim, output_dim = get_env_dims(train_env)
         # agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
         if args.agent == 'sac':
-            agent = SACAgent(input_dim, output_dim)
+            agent = SACAgent(input_dim, output_dim, lr=args.lr)
         elif args.agent == 'a2c':
-            agent = A2CAgent(input_dim, output_dim)
+            agent = A2CAgent(input_dim, output_dim, lr=args.lr)
         else:
             raise ValueError('Agent string {} not recognized'.format(args.agent))
         # agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=args.dropout, uses_scale=args.envname=='scale',
