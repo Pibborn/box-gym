@@ -1,6 +1,8 @@
 import time
 import matplotlib
-
+from xvfbwrapper import Xvfb
+vdisplay = Xvfb()
+vdisplay.start()
 from agents.StableBaselinesAgents.A2CAgent import A2CAgent
 matplotlib.rcParams['backend'] = 'WebAgg'
 try:
@@ -98,11 +100,11 @@ def plot_test_rewards(test_rewards, threshold):
 if __name__ == '__main__':
     start_time = time.time()
     parser = argparse.ArgumentParser()
-    parser.add_argument('envname')
-    parser.add_argument('agent', type=str)
+    parser.add_argument('--envname', type=str, default='scale_single')
+    parser.add_argument('--agent', type=str, default='sac')
     parser.add_argument('--seed', type=int, default=42)                                 # old default: 42
     parser.add_argument('--episodes', type=int, default=10000)                          # old default: 1000
-    parser.add_argument('--trials', type=int, default=25)
+    parser.add_argument('--trials', type=int, default=100)
     parser.add_argument('--printevery', type=int, default=500)                         # old default: 10
     parser.add_argument('--discount', type=float, default=0.99)                         # old default: 0.99
     parser.add_argument('--threshold', type=float, default=20.1)                        # old default: 475
@@ -128,7 +130,6 @@ if __name__ == '__main__':
             agent = A2CAgent(input_dim, output_dim)
         else:
             raise ValueError('Agent string {} not recognized'.format(args.agent))
-        # agent = A2CAgent(input_dim, output_dim)
         # agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=args.dropout, uses_scale=args.envname=='scale',
         #                     scale_exp=args.envname=='scale_exp')
         agent.train_loop(train_env, test_env, args, verbose=1, only_testing=False)
