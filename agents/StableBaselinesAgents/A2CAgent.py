@@ -14,7 +14,8 @@ class A2CAgent(StableBaselinesAgent):
                 gae_lambda=1.0, ent_coef=0.0, vf_coef=0.5, max_grad_norm=0.5, rms_prop_eps=1e-05, use_rms_prop=True,
                 use_sde=False, sde_sample_freq=- 1, normalize_advantage=False, tensorboard_log=None, create_eval_env=False,
                 policy_kwargs=None, verbose=0, seed=None, device='auto', _init_setup_model=True) """
-        self.agent = A2C(policy='MlpPolicy', env=train_env, verbose=verbose, use_sde=use_sde) #, tensorboard_log='results/temp')
+        self.agent = A2C(policy='MlpPolicy', env=train_env, verbose=verbose, use_sde=use_sde,
+                         tensorboard_log='results/temp')
         return self.agent
 
     def save_agent(self, location):

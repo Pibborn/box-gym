@@ -103,7 +103,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=42)                                 # old default: 42
     parser.add_argument('--episodes', type=int, default=10000)                          # old default: 1000
     parser.add_argument('--trials', type=int, default=25)
-    parser.add_argument('--printevery', type=int, default=1000)                         # old default: 10
+    parser.add_argument('--printevery', type=int, default=500)                         # old default: 10
     parser.add_argument('--discount', type=float, default=0.99)                         # old default: 0.99
     parser.add_argument('--threshold', type=float, default=20.1)                        # old default: 475
     parser.add_argument('--dropout', type=float, default=0.2)                           # old default: 0.2

@@ -17,7 +17,8 @@ class SACAgent(StableBaselinesAgent):
                                                      target_entropy='auto', use_sde=False, sde_sample_freq=- 1, use_sde_at_warmup=False,
                                                      tensorboard_log=None, create_eval_env=False, policy_kwargs=None, verbose=0,
                                                      seed=None, device='auto', _init_setup_model=True)"""
-        self.agent = SAC(policy=policy, env=train_env, verbose=verbose, use_sde=use_sde) #, tensorboard_log='results/temp')
+        self.agent = SAC(policy=policy, env=train_env, verbose=verbose, use_sde=use_sde,
+                         tensorboard_log='results/temp')
         return self.agent
 
     def save_agent(self, location):

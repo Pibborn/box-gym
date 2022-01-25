@@ -78,7 +78,8 @@ class StableBaselinesAgent(Agent):
 
         self.agent = self.create_model(train_env, policy='MlpPolicy', verbose=verbose, use_sde=sde)
         self.agent.learn(MAX_EPISODES, log_interval=PRINT_EVERY, eval_env=test_env, eval_freq=PRINT_EVERY,
-                         callback=[wandb_callback, train_success_callback, test_success_callback])
+                         callback=[wandb_callback, train_success_callback, test_success_callback],
+                         eval_log_path='agents/temp')
 
 
     def save_agent(self, location):
