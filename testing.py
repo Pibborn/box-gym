@@ -1,3 +1,6 @@
+from xvfbwrapper import Xvfb
+vdisplay = Xvfb()
+vdisplay.start()
 import numpy as np
 from gym import spaces
 import gym
