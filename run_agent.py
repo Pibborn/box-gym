@@ -2,7 +2,6 @@ import time
 import matplotlib
 
 from agents.StableBaselinesAgents.A2CAgent import A2CAgent
-
 matplotlib.rcParams['backend'] = 'WebAgg'
 try:
     import cPickle as pickle
@@ -21,9 +20,8 @@ from agents.StableBaselinesAgents.SACAgent import SACAgent
 from gym.spaces import Dict
 import argparse
 import wandb
-
-TRAINING = 1
-TESTING = 2
+from rich.traceback import install
+install(show_locals=True)
 
 
 def create_envs(env_str, seed=42, do_render=True, randomness=False):
@@ -36,9 +34,6 @@ def create_envs(env_str, seed=42, do_render=True, randomness=False):
     elif env_str == 'scale_single':
         train_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=1)
         test_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=1)
-        """
-        train_env = ScaleSingleAction(rendering=do_render, randomness=randomness)
-        test_env = ScaleSingleAction(rendering=do_render, randomness=randomness)"""
     else:
         train_env = GymEnv(env_str)
         train_env = train_env.create()
@@ -101,13 +96,10 @@ def plot_test_rewards(test_rewards, threshold):
 
 
 if __name__ == '__main__':
-    # 1: run the agent and train and test him, save the agent in a file
-    # 2: load the agent from the file and only test him
-    mode = TRAINING
-
     start_time = time.time()
     parser = argparse.ArgumentParser()
     parser.add_argument('envname')
+    parser.add_argument('agent', type=str)
     parser.add_argument('--seed', type=int, default=42)                                 # old default: 42
     parser.add_argument('--episodes', type=int, default=10000)                          # old default: 1000
     parser.add_argument('--trials', type=int, default=25)
@@ -115,35 +107,35 @@ if __name__ == '__main__':
     parser.add_argument('--discount', type=float, default=0.99)                         # old default: 0.99
     parser.add_argument('--threshold', type=float, default=20.1)                        # old default: 475
     parser.add_argument('--dropout', type=float, default=0.2)                           # old default: 0.2
-    parser.add_argument('--randomness', type=bool, default=False)                       # old default: False
+    parser.add_argument('--randomness', action='store_true')                       # old default: False
     parser.add_argument('--rendering', action='store_true')
     parser.add_argument('--overwriting', type=bool, default=False)                      # old default: True
     parser.add_argument('--entity', type=str, default='jgu-wandb')
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--test', action='store_true')
-    parser.add_argument('--plot', type=bool, default=True)
     args = parser.parse_args()
 
-    wandb.init(project="box-gym", entity=args.entity, mode="online")                    # mode="online"
-    wandb.config = args
+    wandb.init(project="box-gym", entity=args.entity, config=args, sync_tensorboard=True)
 
-    if mode == TRAINING:  # train + test new agent
+    if not args.test:  # train + test new agent
         train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=False,  # args.rendering,
                                           randomness=args.randomness)  # do_render=True
         input_dim, output_dim = get_env_dims(train_env)
         # agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
-        agent = SACAgent(input_dim, output_dim)
+        if args.agent == 'sac':
+            agent = SACAgent(input_dim, output_dim)
+        elif args.agent == 'a2c':
+            agent = A2CAgent(input_dim, output_dim)
+        else:
+            raise ValueError('Agent string {} not recognized'.format(args.agent))
         # agent = A2CAgent(input_dim, output_dim)
         # agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=args.dropout, uses_scale=args.envname=='scale',
         #                     scale_exp=args.envname=='scale_exp')
-        mean_train_rewards, mean_test_rewards = agent.train_loop(train_env, test_env, args, verbose=1, only_testing=False)
+        agent.train_loop(train_env, test_env, args, verbose=1, only_testing=False)
         # save the trained agent
         if args.overwriting:   # todo: fix pickling
             with open('agent', 'wb') as agent_file:
                 dill.dump(agent, agent_file)
-
-        if args.plot:
-            plot_rewards(mean_train_rewards, mean_test_rewards, args.threshold)
 
     else:  # load old agent and test him
         # load the agent
@@ -153,8 +145,6 @@ if __name__ == '__main__':
             train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.rendering,
                                               randomness=args.randomness)
             _, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=True)
-        if args.plot:
-            plot_test_rewards(mean_test_rewards, args.threshold)
 
     end_time = time.time()
     print(end_time - start_time)
