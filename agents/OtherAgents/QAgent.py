@@ -4,13 +4,13 @@ import torch.nn
 import numpy as np
 import torch.optim as optim
 import wandb
+from agents.AgentInterface import Agent
 
 
-class QAgent(torch.nn.Module):
-
+class QAgent(Agent):
     def __init__(self, input_dim, output_dim, num_hidden_layers=3, hidden_layer_size=50, gamma=0.9,
                  epsilon=0.3, lr=1e-4):
-        super().__init__()
+        super().__init__(input_dim=input_dim, output_dim=output_dim)
         self.gamma = gamma  # discount factor
         self.lr = lr
         self.epsilon = epsilon
@@ -21,7 +21,7 @@ class QAgent(torch.nn.Module):
         self.n_hidden_layers = num_hidden_layers
         self.hidden_layer_size = hidden_layer_size
 
-    def train_episode(self, env, verbose=0):
+    def train_episode(self, env, verbose=1):
         MAXITERATIONS = 120
         state = torch.tensor(env.reset())
         R = 0  # return (sum of rewards)
@@ -53,30 +53,6 @@ class QAgent(torch.nn.Module):
             print(loss, episode_reward)
         return loss, episode_reward
 
-    def calculate_returns(self, rewards, discount_factor, normalize=True):
-        returns = []
-        R = 0
-        for r in reversed(rewards):
-            R = r + R * discount_factor
-            returns.insert(0, R)
-        returns = torch.tensor(returns)
-        if normalize:
-            if returns.size()[0] > 1:
-                returns = (returns - returns.mean()) / returns.std()
-            else:
-                pass
-        return returns
-
-    def update_policy(self, returns, log_prob_actions, optimizer):
-        returns = returns.detach()
-        if log_prob_actions == []:  # todo: fix
-            return 0
-        loss = - (returns * log_prob_actions).sum()
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        return loss.item()
-
     def evaluate(self, env):
         with self.agent.eval_mode():
             state = torch.tensor(env.reset())
@@ -104,7 +80,7 @@ class QAgent(torch.nn.Module):
                     break
             return R
 
-    def train_loop(self, train_env, test_env, config, only_testing=False):
+    def train_loop(self, train_env, test_env, config, verbose=1, sde=False, only_testing=False):
         MAX_EPISODES = config.episodes
         DISCOUNT_FACTOR = config.discount
         N_TRIALS = config.trials
@@ -183,6 +159,8 @@ class QAgent(torch.nn.Module):
         wandb.log({'test_success_rate': test_success_rate})
         return train_rewards, test_rewards
 
+    def save_agent(self, location): # todo
+        pass
 
-if __name__ == '__main__':
-    agent = QAgent(10, 10, 10)
+    def load_agent(self, location):
+        pass

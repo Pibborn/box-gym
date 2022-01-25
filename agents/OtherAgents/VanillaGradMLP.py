@@ -1,5 +1,4 @@
-import math
-
+from agents.AgentInterface import Agent
 from agents.initializers import xavier_init
 import torch
 import torch.nn as nn
@@ -11,10 +10,10 @@ import numpy as np
 from collections import OrderedDict
 from ScaleEnvironment.ScaleExperiment import rescale_movement
 
-class VanillaGradMLP(nn.Module):
+class VanillaGradMLP(Agent):
     def __init__(self, input_dim, hidden_dim, output_dim, dropout=0.5,
                  lr=0.0005, uses_scale=True, scale_exp=False):
-        super().__init__()
+        super().__init__(input_dim=input_dim, output_dim=output_dim)
         self.uses_scale = uses_scale
         self.scale_exp = scale_exp
         self.fc_1 = nn.Linear(input_dim, hidden_dim)
@@ -26,6 +25,7 @@ class VanillaGradMLP(nn.Module):
         self.lr = lr
         self.init_weights()
         self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
+        self.discount_factor = 0.99
 
     def forward(self, x):
         with autograd.detect_anomaly():
@@ -38,7 +38,7 @@ class VanillaGradMLP(nn.Module):
     def init_weights(self):
         self.apply(xavier_init)
 
-    def train_episode(self, env, discount_factor, verbose=0):
+    def train_episode(self, env, verbose=1):
         MAXITERATIONS = 120
         self.train()
         log_prob_actions = []
@@ -93,33 +93,11 @@ class VanillaGradMLP(nn.Module):
             log_prob_actions = torch.cat(log_prob_actions)
         except RuntimeError:
             pass
-        returns = self.calculate_returns(rewards, discount_factor)
+        returns = self.calculate_returns(rewards, self.discount_factor)
         loss = self.update_policy(returns, log_prob_actions, self.optimizer)
         if verbose > 0:
             print(loss,episode_reward)
         return loss, episode_reward
-
-    def calculate_returns(self, rewards, discount_factor, normalize=True):
-        returns = []
-        R = 0
-        for r in reversed(rewards):
-            R = r + R * discount_factor
-            returns.insert(0, R)
-        returns = torch.tensor(returns)
-        if normalize:
-            if returns.size()[0] > 1:
-                returns = (returns - returns.mean()) / returns.std()
-            else:
-                pass
-        return returns
-
-    def update_policy(self, returns, log_prob_actions, optimizer):
-        returns = returns.detach()
-        loss = - (returns * log_prob_actions).sum()
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        return loss.item()
 
     def evaluate(self, env):
         self.eval()
@@ -165,9 +143,10 @@ class VanillaGradMLP(nn.Module):
             episode_reward += reward
         return episode_reward
 
-    def train_loop(self, train_env, test_env, config, only_testing = False):
+    def train_loop(self, train_env, test_env, config, verbose=1, sde=False, only_testing=False):
         MAX_EPISODES = config.episodes
         DISCOUNT_FACTOR = config.discount
+        self.discount_factor = DISCOUNT_FACTOR
         N_TRIALS = config.trials
         REWARD_THRESHOLD = config.threshold
         PRINT_EVERY = config.printevery
@@ -177,7 +156,7 @@ class VanillaGradMLP(nn.Module):
         test_matches = 0
         for episode in range(1, MAX_EPISODES + 1):
             if not only_testing:
-                loss, train_reward = self.train_episode(train_env, DISCOUNT_FACTOR, verbose=0)
+                loss, train_reward = self.train_episode(train_env, verbose=0)
                 test_reward = self.evaluate(test_env)
                 train_rewards.append(train_reward)
                 test_rewards.append(test_reward)
@@ -212,3 +191,9 @@ class VanillaGradMLP(nn.Module):
         print(
             f"Success rate of test episodes: {test_matches}/{MAX_EPISODES}={(test_matches / MAX_EPISODES * 100):,.2f}%")
         return train_rewards, test_rewards
+
+    def save_agent(self, location):  # todo
+        pass
+
+    def load_agent(self, location):
+        pass

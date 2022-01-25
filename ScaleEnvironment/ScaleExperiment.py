@@ -177,9 +177,13 @@ class ScaleExperiment(Framework, gym.Env):
     def createBox(self, pos_x, pos_y=None, density=DENSITY, boxsize=BOXSIZE):
         """Create a new box on the screen
         Input values: position as x and y coordinate, density and size of the box"""
+        try:  # todo: fix
+            pos_x = float(pos_x[0])
+            pos_y = float(pos_y[0])
+        except:
+            pass
         if not pos_y:
             pos_y = self.y
-
         newBox = self.world.CreateDynamicBody(
             position=(pos_x, pos_y),
             fixtures=fixtureDef(shape=polygonShape(box=(boxsize, boxsize)),
@@ -255,7 +259,9 @@ class ScaleExperiment(Framework, gym.Env):
             action = None
             if done:
                 break
-        done = True
+        if not done:
+            done = True
+            self.reset()
         return self.state, reward, done, info
 
     def internal_step(self, action=None):

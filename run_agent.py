@@ -1,6 +1,8 @@
 import time
 import matplotlib
 
+from agents.StableBaselinesAgents.A2CAgent import A2CAgent
+
 matplotlib.rcParams['backend'] = 'WebAgg'
 try:
     import cPickle as pickle
@@ -15,9 +17,8 @@ import matplotlib.pyplot as plt
 from environments.GymEnv import GymEnv
 from ScaleEnvironment.Scale import Scale
 from ScaleEnvironment.ScaleExperiment import ScaleExperiment
-from agents.VanillaGradMLP import VanillaGradMLP
-from agents.QAgent import QAgent
-from gym.spaces import Dict, Box
+from agents.StableBaselinesAgents.SACAgent import SACAgent
+from gym.spaces import Dict
 import argparse
 import wandb
 
@@ -127,17 +128,20 @@ if __name__ == '__main__':
     wandb.config = args
 
     if mode == TRAINING:  # train + test new agent
-        train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.rendering,
+        train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=False,  # args.rendering,
                                           randomness=args.randomness)  # do_render=True
         input_dim, output_dim = get_env_dims(train_env)
-        agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
-        """agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=args.dropout, uses_scale=args.envname=='scale',
-                              scale_exp=args.envname=='scale_exp')"""
-        mean_train_rewards, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=False)
+        # agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
+        agent = SACAgent(input_dim, output_dim)
+        # agent = A2CAgent(input_dim, output_dim)
+        # agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=args.dropout, uses_scale=args.envname=='scale',
+        #                     scale_exp=args.envname=='scale_exp')
+        mean_train_rewards, mean_test_rewards = agent.train_loop(train_env, test_env, args, verbose=1, only_testing=False)
         # save the trained agent
         if args.overwriting:   # todo: fix pickling
             with open('agent', 'wb') as agent_file:
                 dill.dump(agent, agent_file)
+
         if args.plot:
             plot_rewards(mean_train_rewards, mean_test_rewards, args.threshold)
 
