@@ -1,3 +1,6 @@
+from xvfbwrapper import Xvfb
+vdisplay = Xvfb()
+vdisplay.start()
 import numpy as np
 from gym import spaces
 import gym
@@ -5,21 +8,41 @@ from stable_baselines3 import PPO, A2C, SAC, DQN, DDPG  # DQN coming soon
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.vec_env import VecVideoRecorder
+from wandb.integration.sb3 import WandbCallback
+import wandb
+import argparse
+
+# arg parsing
+parser = argparse.ArgumentParser()
+parser.add_argument('envname')
+parser.add_argument('--steps', type=int, default=5000)
+parser.add_argument('--entity', type=str, default='jgu-wandb')
+parser.add_argument('--random', action='store_true')
+args = parser.parse_args()
+
+# wandb init
+wandb.init(config=args, project="box-gym", entity=args.entity, sync_tensorboard=True)
 
 # Instantiate the env
 from ScaleEnvironment.ScaleExperiment import ScaleExperiment
 
-env = ScaleExperiment(rendering=False, randomness=True, actions=1)
+env = ScaleExperiment(rendering=False, randomness=args.random, actions=2)
 low = [env.observation_space[x].low[0] for x in env.observation_space]
 high = [env.observation_space[x].high[0] for x in env.observation_space]
 env.observation_space = spaces.Box(low=np.array(low), high=np.array(high),
                                    shape=(len(low),), dtype=np.float32)
 
 # wrap it
-env = make_vec_env(lambda: env, n_envs=1)
+env = DummyVecEnv([lambda: env])
+env = VecVideoRecorder(env, 'videos', record_video_trigger=lambda x: x % 1000 == 0, video_length=200)
 
 # Train the agentTe
-model = SAC('MlpPolicy', env, verbose=1, use_sde=False).learn(50000)
+wandb_callback = WandbCallback(gradient_save_freq=100,
+                               model_save_path="results/temp",
+                               verbose=0)
+model = SAC('MlpPolicy', env, verbose=0, use_sde=False, tensorboard_log='results/temp')
+model.learn(args.steps, callback=wandb_callback)
 model.save('SAC_Model2')
 model = SAC.load('SAC_Model2', env=env)
 
@@ -37,34 +60,10 @@ success = 0
 #evaluate_policy(model, env, n_eval_episodes=10, render=True)
 
 obs = env.reset()
-env = ScaleExperiment(rendering=True, randomness=False, actions=1)
+env = ScaleExperiment(rendering=True, randomness=args.random, actions=2)
 while True:
     for _ in range(100):
         action, states = model.predict(obs)
         state, reward, done, _ = env.step(action)
-        """if reward >= 1:
-            print(
-                    f"end position: {state[1]}   \taction input: {action[0]}    \t{float(str((state[1] - action[0]) / action[0] * 100)[:5])}% difference)")
-        """
         if done:
             break
-
-"""for _ in range(episodes):
-    obs = env.reset()
-    for step in range(n_steps):
-        action, _ = model.predict(obs, deterministic=True)
-        print("Step {}".format(step + 1))
-        print("Action: ", action)
-        obs, reward, done, info = env.step(action)
-        print('obs=', obs, 'reward=', reward, 'done=', done)
-        env.render(mode='console')
-        if done:
-            # Note that the VecEnv resets automatically
-            # when a done signal is encountered
-            print("Goal reached!", "reward=", reward)
-            if reward >= 1:
-                success += 1
-            break
-
-print(f"{success} / {episodes} = {success / episodes}")
-"""
