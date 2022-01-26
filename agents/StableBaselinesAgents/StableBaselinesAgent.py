@@ -7,7 +7,7 @@ import numpy as np
 import wandb
 from wandb.integration.sb3 import WandbCallback
 from stable_baselines3.common.callbacks import EvalCallback
-from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common.vec_env import VecVideoRecorder
 from agents.SuccessCallback import SuccessCallback
 
@@ -66,6 +66,8 @@ class StableBaselinesAgent(Agent):
 
         train_env = DummyVecEnv([lambda: train_env])
         test_env = DummyVecEnv([lambda: test_env])
+        train_env = VecNormalize(train_env, norm_obs=True, norm_reward=config.reward_norm)
+        test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
         #train_env = VecVideoRecorder(train_env, 'videos', record_video_trigger=lambda x: x % PRINT_EVERY == 0, video_length=200) # todo: Video
 
         wandb_callback = WandbCallback(gradient_save_freq=config.printevery,

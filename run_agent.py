@@ -115,6 +115,7 @@ if __name__ == '__main__':
     parser.add_argument('--entity', type=str, default='jgu-wandb')
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--test', action='store_true')
+    parser.add_argument('--reward-norm', action='store_true')
     args = parser.parse_args()
 
     wandb.init(project="box-gym", entity=args.entity, config=args, sync_tensorboard=True)
