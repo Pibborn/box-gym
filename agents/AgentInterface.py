@@ -130,50 +130,6 @@ class Agent(ABC, torch.nn.Module):
                 :returns: train and test rewards for plotting"""
         raise NotImplementedError("Train Function not implemented")
 
-    @classmethod
-    def test_loop(self, test_env, config, verbose=1):  # todo: fix
-        """Loop for the testing part --> only run tests on the test environment with the trained agent.
-
-        :type test_env: gym.Env
-        :param test_env: test environment
-        :type config: Namespace
-        :param config: configurations, set in the arguments
-        :type verbose: int
-        :param verbose: detailed information about testing?
-        :rtype: list[float]
-        :returns: train and test rewards for plotting"""
-        MAX_EPISODES = config.episodes
-        DISCOUNT_FACTOR = config.discount
-        N_TRIALS = config.trials
-        REWARD_THRESHOLD = config.threshold
-        PRINT_EVERY = config.printevery
-        test_rewards = []
-        test_matches = 0
-        action_size = self.output_dim  # train_env.action_space.low.size
-
-        test_env.observation_space = self.convert_observation_space(test_env.observation_space)
-
-        for episode in range(1, MAX_EPISODES + 1):
-            test_reward = self.evaluate(test_env)
-            if test_reward >= 1:
-                test_matches += 1
-            test_rewards.append(test_reward)
-            mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
-            wandb.log({'test_rewards': mean_test_rewards})
-            # stats = self.agent.get_statistics()
-            # wandb.log({'average_q': stats[0][1]})
-            # wandb.log({'loss': stats[1][1]})
-            """if episode % PRINT_EVERY == 0:
-                print(f'| Episode: {episode:3} | Mean Test Rewards: {mean_test_rewards:5.1f} |')
-                print(self.agent.get_statistics())"""
-            if mean_test_rewards >= REWARD_THRESHOLD:
-                print(f'Reached reward threshold in {episode} episodes')
-                break
-        print(
-            f"Success rate of test episodes: {test_matches}/{MAX_EPISODES}={(test_matches / MAX_EPISODES * 100):,.2f}%")
-        test_success_rate = test_matches / MAX_EPISODES
-        wandb.log({'test_success_rate': test_success_rate})
-        return test_rewards
 
     @abstractmethod
     def save_agent(self, location):

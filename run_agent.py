@@ -108,12 +108,13 @@ if __name__ == '__main__':
     parser.add_argument('--dropout', type=float, default=0.2)                           # old default: 0.2
     parser.add_argument('--randomness', action='store_true')                       # old default: False
     parser.add_argument('--rendering', action='store_true')
-    parser.add_argument('--overwriting', type=bool, default=False)                      # old default: True
+    parser.add_argument('--overwriting', action='store_true')
     parser.add_argument('--entity', type=str, default='jgu-wandb')
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--reward-norm', action='store_true')
     parser.add_argument('--disable_xvfb', action='store_true')
+    parser.add_argument('--location', type=str, default="")
     args = parser.parse_args()
 
     if not args.disable_xvfb:
@@ -130,26 +131,40 @@ if __name__ == '__main__':
         # agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
         if args.agent == 'sac':
             agent = SACAgent(input_dim, output_dim, lr=args.lr)
+            if args.location == "":
+                args.location = "SAC_Model"
         elif args.agent == 'a2c':
             agent = A2CAgent(input_dim, output_dim, lr=args.lr)
+            if args.location == "":
+                args.location = "A2C_Model"
         else:
             raise ValueError('Agent string {} not recognized'.format(args.agent))
         # agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=args.dropout, uses_scale=args.envname=='scale',
         #                     scale_exp=args.envname=='scale_exp')
         agent.train_loop(train_env, test_env, args, verbose=1, only_testing=False)
         # save the trained agent
-        if args.overwriting:   # todo: fix pickling
-            with open('agent', 'wb') as agent_file:
-                dill.dump(agent, agent_file)
+        if args.overwriting:
+            agent.save_agent(args.location)
 
     else:  # load old agent and test him
         # load the agent
-        with open('agent', 'rb') as agent_file:
-            agent = dill.load(agent_file)
-            # use the loaded agent
-            train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.rendering,
-                                              randomness=args.randomness)
-            _, mean_test_rewards = agent.train_loop(train_env, test_env, args, only_testing=True)
+        train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.rendering,
+                                          randomness=args.randomness)
+        input_dim, output_dim = get_env_dims(test_env)
+        if args.agent == 'sac':
+            agent = SACAgent(input_dim, output_dim, lr=args.lr)
+            if args.location == "":
+                args.location = 'SAC_Model'
+        elif args.agent == 'a2c':
+            agent = A2CAgent(input_dim, output_dim, lr=args.lr)
+            if args.location == "":
+                args.location = 'A2C_Model'
+        else:
+            raise ValueError('Agent string {} not recognized'.format(args.agent))
+        agent.load_agent(args.location)
+        # use the loaded agent
+
+        mean_test_rewards = agent.test_loop(test_env=test_env, config=args, verbose=1)#train_loop(train_env, test_env, args, only_testing=True)
 
     end_time = time.time()
     print(end_time - start_time)

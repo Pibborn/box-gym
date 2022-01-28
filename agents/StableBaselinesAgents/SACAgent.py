@@ -2,7 +2,6 @@ from stable_baselines3 import SAC
 
 from agents.StableBaselinesAgents.StableBaselinesAgent import StableBaselinesAgent
 
-
 class SACAgent(StableBaselinesAgent):
     def __init__(self, input_dim, output_dim, lr=1e-4):
         super().__init__(input_dim, output_dim)
@@ -23,7 +22,7 @@ class SACAgent(StableBaselinesAgent):
         return self.agent
 
     def save_agent(self, location):
-        self.agent.save_agent(location)
+        self.agent.save(location)
         return
 
     def load_agent(self, location):

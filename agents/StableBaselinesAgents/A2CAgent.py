@@ -20,7 +20,7 @@ class A2CAgent(StableBaselinesAgent):
         return self.agent
 
     def save_agent(self, location):
-        self.agent.save_agent(location)
+        self.agent.save(location)
         return
 
     def load_agent(self, location):
