@@ -1,8 +1,5 @@
 import time
 import matplotlib
-from xvfbwrapper import Xvfb
-vdisplay = Xvfb()
-vdisplay.start()
 from agents.StableBaselinesAgents.A2CAgent import A2CAgent
 matplotlib.rcParams['backend'] = 'WebAgg'
 try:
@@ -116,7 +113,13 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--reward-norm', action='store_true')
+    parser.add_argument('--disable_xvfb', action='store_true')
     args = parser.parse_args()
+
+    if not args.disable_xvfb:
+        from xvfbwrapper import Xvfb
+        vdisplay = Xvfb()
+        vdisplay.start()
 
     wandb.init(project="box-gym", entity=args.entity, config=args, sync_tensorboard=True)
 
