@@ -262,6 +262,7 @@ class ScaleExperiment(Framework, gym.Env):
         if not done:
             done = True
             self.reset()
+        print(reward)
         return self.state, reward, done, info
 
     def internal_step(self, action=None):
