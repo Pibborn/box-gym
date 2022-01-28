@@ -65,7 +65,8 @@ class TrackingCallback(BaseCallback):
                 action, _states = self.model.predict(obs, deterministic=True)
                 actions.append(action)
                 obs, reward, done, info = self.env.step(action)
-                angle = obs[0, 2]
+                obs = self.env.get_attr('old_state')
+                angle = obs[0][2]
                 angles.append(angle)
                 if reward >= 1:
                     matches += 1
