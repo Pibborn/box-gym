@@ -61,7 +61,7 @@ class ScaleExperiment(Framework, gym.Env):
     """You can use this class as an outline for your tests."""
     name = "ScaleExperiment"  # Name of the class to display
 
-    def __init__(self, rendering=True, randomness=True, actions=1):
+    def __init__(self, rendering=True, randomness=True, normalize=False, actions=1):
         """
         Initialize all of your objects here.
         Be sure to call the Framework's initializer first.
@@ -82,17 +82,27 @@ class ScaleExperiment(Framework, gym.Env):
 
         self.rendering = rendering  # should the simulation be rendered or not
         self.randomness = randomness  # random densities or are both the same
+        self.normalize = normalize
         self.actions = actions  # 1: agent chooses one position, 2: agent chooses both positions
 
         limit1, limit2 = BARLENGTH - 2 * BOXSIZE, 2 * BOXSIZE
         if self.actions == 1:  # only choose to place the right box
-            self.action_space = gym.spaces.Box(low=limit2, high=limit1, # todo: normalize it
+            if not self.normalize:
+                self.action_space = gym.spaces.Box(low=limit2, high=limit1, # todo: normalize it
                                                shape=(1,), dtype=np.float32)
+            else:
+                self.action_space = gym.spaces.Box(low=0, high=1,  # todo: normalize it
+                                                   shape=(1,), dtype=np.float32)
         elif self.actions == 2:  # place both boxes
-            self.action_space = gym.spaces.Box(low=np.array([-limit1, limit2]), high=np.array([-limit2, limit1]),
-                                               shape=(2,), dtype=np.float32)
+            if not self.normalize:
+                self.action_space = gym.spaces.Box(low=np.array([-limit1, limit2]), high=np.array([-limit2, limit1]),
+                                                   shape=(2,), dtype=np.float32)
+            else:
+                self.action_space = gym.spaces.Box(low=np.array([0, 0]), high=np.array([1, 1]),
+                                                   shape=(2,), dtype=np.float32)
 
-        """self.observation_space = spaces.Dict(spaces={
+        if not self.normalize:
+            self.observation_space = spaces.Dict(spaces={
             "pos1": Box(low=-20., high=20., shape=(1,), dtype=float),
             "pos2": Box(low=-20., high=20., shape=(1,), dtype=float),
             "angle": Box(low=-0.390258252620697, high=0.390258252620697, shape=(1,), dtype=float),
@@ -100,17 +110,17 @@ class ScaleExperiment(Framework, gym.Env):
             "vel": Box(low=-2., high=2., shape=(1,), dtype=float),
             "density1": Box(low=4., high=6., shape=(1,), dtype=float),
             "density2": Box(low=4., high=6., shape=(1,), dtype=float),
-        })"""
-
-        self.observation_space = spaces.Dict(spaces={
-            "pos1": Box(low=-1., high=1., shape=(1,), dtype=float),
-            "pos2": Box(low=-1., high=1., shape=(1,), dtype=float),
-            "angle": Box(low=-1, high=0.1, shape=(1,), dtype=float),
-            # angular velocity of the bar, negative: moves to the right, positive: moves to the left
-            "vel": Box(low=-1., high=1., shape=(1,), dtype=float),
-            "density1": Box(low=0., high=1., shape=(1,), dtype=float),
-            "density2": Box(low=0., high=1., shape=(1,), dtype=float),
         })
+        else:
+            self.observation_space = spaces.Dict(spaces={
+                "pos1": Box(low=-1., high=1., shape=(1,), dtype=float),
+                "pos2": Box(low=-1., high=1., shape=(1,), dtype=float),
+                "angle": Box(low=-1, high=0.1, shape=(1,), dtype=float),
+                # angular velocity of the bar, negative: moves to the right, positive: moves to the left
+                "vel": Box(low=-1., high=1., shape=(1,), dtype=float),
+                "density1": Box(low=0., high=1., shape=(1,), dtype=float),
+                "density2": Box(low=0., high=1., shape=(1,), dtype=float),
+            })
 
 
         """self.observation_space = spaces.Box(low=np.array([-20, -20, -0.390258252620697, -2., 4., 4.]), high=np.array([20, 20, 0.390258252620697, 2., 6., 6.]),
@@ -277,7 +287,8 @@ class ScaleExperiment(Framework, gym.Env):
                                    self.bar.angle, self.bar.angularVelocity,
                                    DENSITY, DENSITY],
                                   dtype=np.float32)  # densities cannot be accessed through the box object ...
-        self.normalized_state = self.rescaleState()
+        if self.normalize:
+            self.normalized_state = self.rescaleState()
         # print(self.state, self.normalized_state)
         return self.state
 
@@ -368,8 +379,9 @@ class ScaleExperiment(Framework, gym.Env):
             reward = getReward()
             self.render()
             self.reset()
-            return self.rescaleState(state), reward, True, {}
-            # return state, reward, True, {}
+            if self.normalize:
+                return self.rescaleState(state), reward, True, {}
+            return state, reward, True, {}
 
         # check if no movement anymore
         if self.state[3] == 0.0 and boxesOnScale():
@@ -381,8 +393,9 @@ class ScaleExperiment(Framework, gym.Env):
                     f"Match: {self.boxA.position[0]}\t{self.boxB.position[0]}\t{self.bar.angle}\t{20 * math.cos(self.bar.angle)}")
                 reward = getReward()
                 self.reset()
-                return self.rescaleState(state), 20 * math.cos(self.bar.angle), True, {}
-                # return state, 20 * math.cos(self.bar.angle), True, {}
+                if self.normalize:
+                    return self.rescaleState(state), 20 * math.cos(self.bar.angle), True, {}
+                return state, 20 * math.cos(self.bar.angle), True, {}
                 # return state, 2 * MAXITERATIONS * math.cos(self.bar.angle), True, {}
         else:  # no movement --> reset counter
             self.counter = 0
@@ -397,17 +410,24 @@ class ScaleExperiment(Framework, gym.Env):
             reward = getReward()
             # reward = self.timesteps
             self.state = self.resetState()
-            return self.rescaleState(), reward, False, {}
-            # return self.state, reward, False, {}
+            if self.normalize:
+                return self.rescaleState(), reward, False, {}
+            return self.state, reward, False, {}
 
         # extract information from action
         if self.actions == 1:
             box2_pos = action[0]  # todo: fix agent so that the action isn't an array with 2 entries of the same value
+            if self.normalize:
+                box2_pos = rescale_movement([0, 1], box2_pos, [2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
         elif self.actions == 2:
             box1_pos = action[0]
             box2_pos = action[1]
+            if self.normalize:
+                box1_pos = rescale_movement([0, 1], box1_pos, [-BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE])
+                box2_pos = rescale_movement([0, 1], box2_pos, [2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
 
-        # perform action
+
+                # perform action
         if self.actions > 1:
             self.boxA = self.placeBox(self.boxA, box1_pos)
         elif self.actions == 1:
@@ -439,8 +459,9 @@ class ScaleExperiment(Framework, gym.Env):
 
         self.render()
 
-        return self.rescaleState(), reward, done, info
-        # return self.state, reward, done, info
+        if self.normalize:
+            return self.rescaleState(), reward, done, info
+        return self.state, reward, done, info
 
     def close(self):
         pygame.quit()

@@ -6,8 +6,6 @@ try:
     import cPickle as pickle
 except ModuleNotFoundError:
     import pickle
-import dill
-import matplotlib
 
 matplotlib.rcParams['backend'] = 'WebAgg'
 import matplotlib.pyplot as plt
@@ -23,16 +21,16 @@ from rich.traceback import install
 install(show_locals=True)
 
 
-def create_envs(env_str, seed=42, do_render=True, randomness=False):
+def create_envs(env_str, seed=42, do_render=True, randomness=False, normalize=False):
     if env_str == 'scale':
         train_env = Scale(rendering=do_render)
         test_env = Scale(rendering=do_render)
     elif env_str == 'scale_exp':
-        train_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=2)
-        test_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=2)
+        train_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=2, normalize=normalize)
+        test_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=2, normalize=normalize)
     elif env_str == 'scale_single':
-        train_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=1)
-        test_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=1)
+        train_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=1, normalize=normalize)
+        test_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=1, normalize=normalize)
     else:
         train_env = GymEnv(env_str)
         train_env = train_env.create()
@@ -115,6 +113,7 @@ if __name__ == '__main__':
     parser.add_argument('--reward-norm', action='store_true')
     parser.add_argument('--disable_xvfb', action='store_true')
     parser.add_argument('--location', type=str, default="")
+    parser.add_argument('--normalize', action='store_true')
     args = parser.parse_args()
 
     if not args.disable_xvfb:
@@ -126,7 +125,7 @@ if __name__ == '__main__':
 
     if not args.test:  # train + test new agent
         train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=False,  # args.rendering,
-                                          randomness=args.randomness)
+                                          randomness=args.randomness, normalize=args.normalize)
         input_dim, output_dim = get_env_dims(train_env)
         # agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
         if args.agent == 'sac':
@@ -149,7 +148,7 @@ if __name__ == '__main__':
     else:  # load old agent and test him
         # load the agent
         train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.rendering,
-                                          randomness=args.randomness)
+                                          randomness=args.randomness, normalize=args.normalize)
         input_dim, output_dim = get_env_dims(test_env)
         if args.agent == 'sac':
             agent = SACAgent(input_dim, output_dim, lr=args.lr)
