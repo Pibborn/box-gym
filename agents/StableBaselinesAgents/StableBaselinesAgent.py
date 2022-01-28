@@ -9,7 +9,7 @@ from wandb.integration.sb3 import WandbCallback
 from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common.vec_env import VecVideoRecorder
-from agents.SuccessCallback import SuccessCallback
+from agents.TrackingCallback import TrackingCallback
 
 from agents.AgentInterface import Agent
 
@@ -73,10 +73,10 @@ class StableBaselinesAgent(Agent):
         wandb_callback = WandbCallback(gradient_save_freq=config.printevery,
                                        model_save_path="results/temp",
                                        verbose=0)
-        train_success_callback = SuccessCallback(train_env, printfreq=PRINT_EVERY, num_eval_episodes=N_TRIALS,
-                                                 is_test=False)
-        test_success_callback = SuccessCallback(test_env, printfreq=PRINT_EVERY, num_eval_episodes=N_TRIALS,
-                                                is_test=True)
+        train_success_callback = TrackingCallback(train_env, printfreq=PRINT_EVERY, num_eval_episodes=N_TRIALS,
+                                                  is_test=False)
+        test_success_callback = TrackingCallback(test_env, printfreq=PRINT_EVERY, num_eval_episodes=N_TRIALS,
+                                                 is_test=True)
 
         self.agent = self.create_model(train_env, policy='MlpPolicy', verbose=verbose, use_sde=sde)
         self.agent.learn(MAX_EPISODES, log_interval=PRINT_EVERY, eval_env=test_env, eval_freq=PRINT_EVERY,

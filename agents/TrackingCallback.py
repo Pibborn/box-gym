@@ -1,15 +1,16 @@
 from stable_baselines3.common.callbacks import BaseCallback
 import wandb
+import numpy as np
 
 
-class SuccessCallback(BaseCallback):
+class TrackingCallback(BaseCallback):
     """
     A custom callback that derives from ``BaseCallback``.
 
     :param verbose: (int) Verbosity level 0: not output 1: info 2: debug
     """
     def __init__(self, env, printfreq=100, num_eval_episodes=10, verbose=0, is_test=True):
-        super(SuccessCallback, self).__init__(verbose)
+        super(TrackingCallback, self).__init__(verbose)
         self.printfreq = printfreq
         self.num_eval_episodes = num_eval_episodes
         self.is_test = is_test
@@ -57,16 +58,34 @@ class SuccessCallback(BaseCallback):
         """
         if self.num_timesteps % self.printfreq == 0:
             matches = 0
+            actions = []
+            angles = []
             for episode in range(1, self.num_eval_episodes + 1):
                 obs = self.env.reset()
                 action, _states = self.model.predict(obs, deterministic=True)
+                actions.append(action)
                 obs, reward, done, info = self.env.step(action)
+                obs = self.env.get_attr('old_state')
+                angle = obs[0][2]
+                angles.append(angle)
                 if reward >= 1:
                     matches += 1
+            actions = np.squeeze(np.array(actions))
+            angles = np.mean(angles)
             if self.is_test:
-                wandb.log({'test_success_rate': matches/self.num_eval_episodes})
+                wandb.log({
+                    'test_success_rate': matches/self.num_eval_episodes,
+                    'test_actions_mean': wandb.Histogram(np.mean(actions, axis=0)),
+                    'test_action_var': wandb.Histogram(np.var(actions, axis=0)),
+                    'test_mean_angle': angles
+                   })
             else:
-                wandb.log({'train_success_rate': matches/self.num_eval_episodes})
+                wandb.log({
+                    'train_success_rate': matches/self.num_eval_episodes,
+                    'train_actions_mean': wandb.Histogram(np.mean(actions, axis=0)),
+                    'train_action_var': wandb.Histogram(np.var(actions, axis=0)),
+                    'train_mean_angle': angles
+                })
         return True
 
     def _on_rollout_end(self) -> None:

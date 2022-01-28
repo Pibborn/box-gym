@@ -255,6 +255,7 @@ class ScaleExperiment(Framework, gym.Env):
         """Actual step function called by the agent"""
         timesteps = 120
         for _ in range(timesteps):
+            self.old_state = self.state
             self.state, reward, done, info = self.internal_step(action)
             action = None
             if done:
