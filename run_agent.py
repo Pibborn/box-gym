@@ -126,7 +126,7 @@ if __name__ == '__main__':
 
     if not args.test:  # train + test new agent
         train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=False,  # args.rendering,
-                                          randomness=args.randomness)  # do_render=True
+                                          randomness=args.randomness)
         input_dim, output_dim = get_env_dims(train_env)
         # agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
         if args.agent == 'sac':

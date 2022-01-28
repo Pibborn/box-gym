@@ -29,7 +29,7 @@ class StableBaselinesAgent(Agent):
         t = 0  # time step
         done = False
         while not done:
-            action, states = self.agent.predict(state)
+            action, states = self.agent.predict(state, deterministic = True)
             state, reward, done, _ = env.step(action)
             R += reward
             t += 1
