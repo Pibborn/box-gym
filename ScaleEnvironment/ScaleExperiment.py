@@ -434,8 +434,6 @@ class ScaleExperiment(Framework, gym.Env):
             self.boxA = self.placeBox(self.boxA, self.boxA.position[0])  # now place the box on the scale
         self.boxB = self.placeBox(self.boxB, box2_pos)
 
-        print(self.boxA.position[0], box2_pos)      # todo: delete
-
         # Reset the collision points
         self.points = []
 

@@ -21,6 +21,8 @@ from stable_baselines3.a2c import A2C
 from gym.spaces import Dict
 import argparse
 import wandb
+from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+from stable_baselines3.common.utils import set_random_seed
 from rich.traceback import install
 install(show_locals=True)
 
@@ -43,6 +45,7 @@ def create_envs(env_str, seed=42, do_render=True, randomness=False, normalize=Fa
     if seed:
         train_env.seed(seed)
         test_env.seed(seed + 1)
+        set_random_seed(seed)
     return train_env, test_env
 
 
@@ -182,7 +185,9 @@ if __name__ == '__main__':
 
         # use the loaded agent
         print(train_env.action_space, test_env.action_space)
-        #mean_test_rewards = agent.test_loop(test_env=agent.agent.get_env(), config=args, verbose=1)#train_loop(train_env, test_env, args, only_testing=True)
-        mean_test_rewards = agent.evaluate_model(test_env=test_env, config=args)
+        test_env = DummyVecEnv([lambda: test_env])
+        test_env = VecNormalize(test_env, norm_obs=True, norm_reward=args.reward_norm)
+        mean_test_rewards = agent.test_loop(test_env=test_env, config=args, verbose=1)#train_loop(train_env, test_env, args, only_testing=True)
+        #mean_test_rewards = agent.evaluate_model(test_env=test_env, config=args)
     end_time = time.time()
     print(end_time - start_time)

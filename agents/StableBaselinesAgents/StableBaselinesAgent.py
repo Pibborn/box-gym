@@ -88,8 +88,8 @@ class StableBaselinesAgent(Agent):
         self.agent.save("SAC_Model_test")   # location is just a placeholder for now, could be replaced with extra parameter
         del self.agent
         self.agent = SAC.load("SAC_Model_test")
-        #self.test_loop(test_env, config=config, verbose=1)
-        self.evaluate_model(test_env=test_env, config=config)
+        self.test_loop(test_env, config=config, verbose=1)
+        #self.evaluate_model(test_env=test_env, config=config)
 
     def save_agent(self, location):
         self.agent.save_agent(location)
