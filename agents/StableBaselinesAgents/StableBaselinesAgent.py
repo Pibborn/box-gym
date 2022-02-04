@@ -10,6 +10,7 @@ from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common.vec_env import VecVideoRecorder
 from agents.TrackingCallback import TrackingCallback
+from stable_baselines3.common.evaluation import evaluate_policy
 
 from agents.AgentInterface import Agent
 
@@ -24,12 +25,12 @@ class StableBaselinesAgent(Agent):
         pass
 
     def evaluate(self, env: gym.Env):
-        state = torch.tensor(env.reset())
+        state = env.reset() #torch.tensor(env.reset())
         R = 0  # return (sum of rewards)
         t = 0  # time step
         done = False
         while not done:
-            action, states = self.agent.predict(state, deterministic = True)
+            action, states = self.agent.predict(state, deterministic=True)
             state, reward, done, _ = env.step(action)
             R += reward
             t += 1
@@ -68,7 +69,7 @@ class StableBaselinesAgent(Agent):
         test_env = DummyVecEnv([lambda: test_env])
         train_env = VecNormalize(train_env, norm_obs=True, norm_reward=config.reward_norm)
         test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
-        #train_env = VecVideoRecorder(train_env, 'videos', record_video_trigger=lambda x: x % PRINT_EVERY == 0, video_length=200) # todo: Video
+        # train_env = VecVideoRecorder(train_env, 'videos', record_video_trigger=lambda x: x % PRINT_EVERY == 0, video_length=200) # todo: Video
 
         wandb_callback = WandbCallback(gradient_save_freq=config.printevery,
                                        model_save_path="results/temp",
@@ -83,6 +84,12 @@ class StableBaselinesAgent(Agent):
                          callback=[wandb_callback, train_success_callback, test_success_callback],
                          eval_log_path='agents/temp')
 
+        # try to load the model & test it
+        self.agent.save("SAC_Model_test")   # location is just a placeholder for now, could be replaced with extra parameter
+        del self.agent
+        self.agent = SAC.load("SAC_Model_test")
+        #self.test_loop(test_env, config=config, verbose=1)
+        self.evaluate_model(test_env=test_env, config=config)
 
     def save_agent(self, location):
         self.agent.save_agent(location)
@@ -90,6 +97,15 @@ class StableBaselinesAgent(Agent):
 
     def load_agent(self, location):
         pass
+
+    def evaluate_model(self, test_env, config):
+        EPISODES = config.episodes
+        """if not (type(test_env) == stable_baselines3.common.vec_env.dummy_vec_env.DummyVecEnv):
+            test_env = DummyVecEnv([lambda: test_env])  # convert the model"""
+        # Evaluate the trained agent
+        mean_reward, std_reward = evaluate_policy(self.agent, test_env, n_eval_episodes=EPISODES, deterministic=True)
+        print(f"mean_reward={mean_reward:.2f} +/- {std_reward}")
+        return mean_reward
 
     def test_loop(self, test_env, config, verbose=1):  # todo: fix
         """Loop for the testing part --> only run tests on the test environment with the trained agent.
@@ -109,9 +125,10 @@ class StableBaselinesAgent(Agent):
         PRINT_EVERY = config.printevery
         test_rewards = []
         test_matches = 0
-        #action_size = self.output_dim  # train_env.action_space.low.size
+        # action_size = self.output_dim  # train_env.action_space.low.size
 
-        test_env.observation_space = self.convert_observation_space(test_env.observation_space)
+        if type(test_env.observation_space) != gym.spaces.box.Box:  # if not already converted to Box
+            test_env.observation_space = self.convert_observation_space(test_env.observation_space)
 
         for episode in range(1, MAX_EPISODES + 1):
             test_reward = self.evaluate(env=test_env)

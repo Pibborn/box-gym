@@ -1,5 +1,7 @@
 import time
+
 import matplotlib
+
 from agents.StableBaselinesAgents.A2CAgent import A2CAgent
 matplotlib.rcParams['backend'] = 'WebAgg'
 try:
@@ -14,6 +16,8 @@ from environments.GymEnv import GymEnv
 from ScaleEnvironment.Scale import Scale
 from ScaleEnvironment.ScaleExperiment import ScaleExperiment
 from agents.StableBaselinesAgents.SACAgent import SACAgent
+from stable_baselines3.sac import SAC
+from stable_baselines3.a2c import A2C
 from gym.spaces import Dict
 import argparse
 import wandb
@@ -143,7 +147,11 @@ if __name__ == '__main__':
         agent.train_loop(train_env, test_env, args, verbose=1, only_testing=False)
         # save the trained agent
         if args.overwriting:
-            agent.save_agent(args.location)
+            agent.agent.save(args.location)
+            # agent.save_agent(args.location)   # could also do this...
+            print(f"Saved model {args.agent} to location {args.location}.zip")
+            agent.agent.save_replay_buffer(f"{args.location}_replay_buffer")
+            print(f"Saved replay buffer from training to location {args.location}_replay_buffer.pkl")
 
     else:  # load old agent and test him
         # load the agent
@@ -152,18 +160,29 @@ if __name__ == '__main__':
         input_dim, output_dim = get_env_dims(test_env)
         if args.agent == 'sac':
             agent = SACAgent(input_dim, output_dim, lr=args.lr)
+            test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
             if args.location == "":
                 args.location = 'SAC_Model'
+            agent.agent = SAC.load(args.location, env=test_env)
         elif args.agent == 'a2c':
             agent = A2CAgent(input_dim, output_dim, lr=args.lr)
+            test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
             if args.location == "":
                 args.location = 'A2C_Model'
+            agent.agent = A2C.load(args.location, env=test_env)
         else:
             raise ValueError('Agent string {} not recognized'.format(args.agent))
-        agent.load_agent(args.location)
+
+        #agent.load_agent(args.location)
+        agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")
+
+        # test_env = agent.agent.get_env()  # maybe the better solution?
+
+        print(f"Loaded agent from Model {args.agent} from location {args.location}")
+
         # use the loaded agent
-
-        mean_test_rewards = agent.test_loop(test_env=test_env, config=args, verbose=1)#train_loop(train_env, test_env, args, only_testing=True)
-
+        print(train_env.action_space, test_env.action_space)
+        #mean_test_rewards = agent.test_loop(test_env=agent.agent.get_env(), config=args, verbose=1)#train_loop(train_env, test_env, args, only_testing=True)
+        mean_test_rewards = agent.evaluate_model(test_env=test_env, config=args)
     end_time = time.time()
     print(end_time - start_time)

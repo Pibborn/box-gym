@@ -136,11 +136,11 @@ class ScaleExperiment(Framework, gym.Env):
 
         # create Box A
         if self.actions == 1:  # place left box randomly on scale
-            startingPositionA = np.random.uniform(- BARLENGTH + 2 * BOXSIZE, -2 * BOXSIZE)
+            startingPositionA = self.np_random.uniform(- BARLENGTH + 2 * BOXSIZE, -2 * BOXSIZE)
         elif self.actions == 2:
             startingPositionA = - BARLENGTH - 3
         if randomness:
-            self.randomDensityA = 4. + 2 * random.random()  # between 4 and 6
+            self.randomDensityA = 4. + 2 * self.np_random.random()  # between 4 and 6
             self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=self.randomDensityA,
                                        boxsize=BOXSIZE)
         else:
@@ -148,7 +148,7 @@ class ScaleExperiment(Framework, gym.Env):
 
         startingPositionB = BARLENGTH + 3
         if randomness:
-            self.randomDensityB = 4. + 2 * random.random()
+            self.randomDensityB = 4. + 2 * self.np_random.random()
             self.boxB = self.createBox(pos_x=startingPositionB, pos_y=BOXSIZE, density=self.randomDensityB,
                                        boxsize=BOXSIZE)
         else:
@@ -434,6 +434,8 @@ class ScaleExperiment(Framework, gym.Env):
             self.boxA = self.placeBox(self.boxA, self.boxA.position[0])  # now place the box on the scale
         self.boxB = self.placeBox(self.boxB, box2_pos)
 
+        print(self.boxA.position[0], box2_pos)      # todo: delete
+
         # Reset the collision points
         self.points = []
 
@@ -507,12 +509,12 @@ class ScaleExperiment(Framework, gym.Env):
         self.deleteAllBoxes()
 
         if self.actions == 1:
-            startingPositionA = np.random.uniform(- BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE)
+            startingPositionA = self.np_random.uniform(- BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE)
             # startingPositionA = np.random.uniform(- 7 * BOXSIZE, - 2 * BOXSIZE)
         else:
             startingPositionA = - BARLENGTH - 3
         if self.randomness:
-            self.randomDensityA = 4. + 2 * random.random()  # between 4 and 6
+            self.randomDensityA = 4. + 2 * self.np_random.random()  # between 4 and 6
             self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=self.randomDensityA,
                                        boxsize=BOXSIZE)
         else:
@@ -520,7 +522,7 @@ class ScaleExperiment(Framework, gym.Env):
 
         startingPositionB = BARLENGTH + 3
         if self.randomness:
-            self.randomDensityB = 4. + 2 * random.random()
+            self.randomDensityB = 4. + 2 * self.np_random.random()
             self.boxB = self.createBox(pos_x=startingPositionB, pos_y=BOXSIZE, density=self.randomDensityB,
                                        boxsize=BOXSIZE)
         else:
