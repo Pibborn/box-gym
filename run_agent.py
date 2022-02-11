@@ -145,6 +145,7 @@ if __name__ == '__main__':
                 args.location = "A2C_Model"
         else:
             raise ValueError('Agent string {} not recognized'.format(args.agent))
+        args.location = f"savedagents/{args.location}"
         # agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=args.dropout, uses_scale=args.envname=='scale',
         #                     scale_exp=args.envname=='scale_exp')
         agent.train_loop(train_env, test_env, args, verbose=1, only_testing=False)
@@ -166,16 +167,17 @@ if __name__ == '__main__':
             test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
             if args.location == "":
                 args.location = 'SAC_Model'
+            args.location = f"savedagents/{args.location}"
             agent.agent = SAC.load(args.location, env=test_env)
         elif args.agent == 'a2c':
             agent = A2CAgent(input_dim, output_dim, lr=args.lr)
             test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
             if args.location == "":
                 args.location = 'A2C_Model'
+            args.location = f"savedagents/{args.location}"
             agent.agent = A2C.load(args.location, env=test_env)
         else:
             raise ValueError('Agent string {} not recognized'.format(args.agent))
-
         #agent.load_agent(args.location)
         agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")
 
@@ -185,9 +187,7 @@ if __name__ == '__main__':
 
         # use the loaded agent
         print(train_env.action_space, test_env.action_space)
-        test_env = DummyVecEnv([lambda: test_env])
-        test_env = VecNormalize(test_env, norm_obs=True, norm_reward=args.reward_norm)
-        mean_test_rewards = agent.test_loop(test_env=test_env, config=args, verbose=1)#train_loop(train_env, test_env, args, only_testing=True)
+        mean_test_rewards = agent.test_loop(test_env=test_env, config=args, verbose=1)
         #mean_test_rewards = agent.evaluate_model(test_env=test_env, config=args)
     end_time = time.time()
     print(end_time - start_time)

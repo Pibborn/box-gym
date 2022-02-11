@@ -416,7 +416,10 @@ class ScaleExperiment(Framework, gym.Env):
 
         # extract information from action
         if self.actions == 1:
-            box2_pos = action[0]  # todo: fix agent so that the action isn't an array with 2 entries of the same value
+            try:
+                box2_pos = action[0]
+            except IndexError:
+                box2_pos = action
             if self.normalize:
                 box2_pos = rescale_movement([0, 1], box2_pos, [2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
         elif self.actions == 2:
@@ -508,7 +511,6 @@ class ScaleExperiment(Framework, gym.Env):
 
         if self.actions == 1:
             startingPositionA = self.np_random.uniform(- BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE)
-            # startingPositionA = np.random.uniform(- 7 * BOXSIZE, - 2 * BOXSIZE)
         else:
             startingPositionA = - BARLENGTH - 3
         if self.randomness:

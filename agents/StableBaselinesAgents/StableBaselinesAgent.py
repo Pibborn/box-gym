@@ -88,8 +88,8 @@ class StableBaselinesAgent(Agent):
         self.agent.save("SAC_Model_test")   # location is just a placeholder for now, could be replaced with extra parameter
         del self.agent
         self.agent = SAC.load("SAC_Model_test")
-        self.test_loop(test_env, config=config, verbose=1)
-        #self.evaluate_model(test_env=test_env, config=config)
+        #self.test_loop(test_env, config=config, verbose=1)
+        self.evaluate_model(test_env=test_env, config=config)
 
     def save_agent(self, location):
         self.agent.save_agent(location)
@@ -129,6 +129,9 @@ class StableBaselinesAgent(Agent):
 
         if type(test_env.observation_space) != gym.spaces.box.Box:  # if not already converted to Box
             test_env.observation_space = self.convert_observation_space(test_env.observation_space)
+
+        test_env = DummyVecEnv([lambda: test_env])
+        test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
 
         for episode in range(1, MAX_EPISODES + 1):
             test_reward = self.evaluate(env=test_env)

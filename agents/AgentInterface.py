@@ -91,7 +91,7 @@ class Agent(ABC, torch.nn.Module):
                 :returns: loss
         """
         returns = returns.detach()
-        if log_prob_actions == []:  # todo: fix (for QAgent)
+        if not log_prob_actions:  # todo: fix (for QAgent)
             return 0
         loss = - (returns * log_prob_actions).sum()
         optimizer.zero_grad()
