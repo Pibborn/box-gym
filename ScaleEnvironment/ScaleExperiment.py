@@ -61,13 +61,14 @@ class ScaleExperiment(Framework, gym.Env):
     """You can use this class as an outline for your tests."""
     name = "ScaleExperiment"  # Name of the class to display
 
-    def __init__(self, rendering=True, randomness=True, normalize=False, actions=1):
+    def __init__(self, rendering=True, randomness=True, normalize=False, actions=1, boxes=2):
         """
         Initialize all of your objects here.
         Be sure to call the Framework's initializer first.
         """
         super(ScaleExperiment, self).__init__(rendering)
 
+        self.np_random = None
         self.seed()
 
         self.num_envs = 1  # for stable-baseline3
@@ -83,13 +84,15 @@ class ScaleExperiment(Framework, gym.Env):
         self.rendering = rendering  # should the simulation be rendered or not
         self.randomness = randomness  # random densities or are both the same
         self.normalize = normalize
-        self.actions = actions  # 1: agent chooses one position, 2: agent chooses both positions
+        self.actions = actions  # 1: agent chooses one position, 2 or 3: agent chooses both/all three positions
+        self.number_of_boxes = boxes
 
+        # action space determination
         limit1, limit2 = BARLENGTH - 2 * BOXSIZE, 2 * BOXSIZE
         if self.actions == 1:  # only choose to place the right box
             if not self.normalize:
-                self.action_space = gym.spaces.Box(low=limit2, high=limit1, # todo: normalize it
-                                               shape=(1,), dtype=np.float32)
+                self.action_space = gym.spaces.Box(low=limit2, high=limit1,  # todo: normalize it
+                                                   shape=(1,), dtype=np.float32)
             else:
                 self.action_space = gym.spaces.Box(low=0, high=1,  # todo: normalize it
                                                    shape=(1,), dtype=np.float32)
@@ -100,9 +103,17 @@ class ScaleExperiment(Framework, gym.Env):
             else:
                 self.action_space = gym.spaces.Box(low=np.array([0, 0]), high=np.array([1, 1]),
                                                    shape=(2,), dtype=np.float32)
+        elif self.actions == 3:  # place three boxes
+            if not self.normalize:
+                self.action_space = gym.spaces.Box(low=np.array([-limit1, -limit1, limit2]),
+                                                   high=np.array([-limit2, -limit2, limit1]),
+                                                   shape=(3,), dtype=np.float32)
+            else:
+                self.action_space = gym.spaces.Box(low=np.array([0, 0, 0]), high=np.array([1, 1, 1]),
+                                                   shape=(3,), dtype=np.float32)
 
-        if not self.normalize:
-            self.observation_space = spaces.Dict(spaces={
+        # observation space
+        observation_dict = {
             "pos1": Box(low=-20., high=20., shape=(1,), dtype=float),
             "pos2": Box(low=-20., high=20., shape=(1,), dtype=float),
             "angle": Box(low=-0.390258252620697, high=0.390258252620697, shape=(1,), dtype=float),
@@ -110,18 +121,25 @@ class ScaleExperiment(Framework, gym.Env):
             "vel": Box(low=-2., high=2., shape=(1,), dtype=float),
             "density1": Box(low=4., high=6., shape=(1,), dtype=float),
             "density2": Box(low=4., high=6., shape=(1,), dtype=float),
-        })
-        else:
-            self.observation_space = spaces.Dict(spaces={
-                "pos1": Box(low=-1., high=1., shape=(1,), dtype=float),
-                "pos2": Box(low=-1., high=1., shape=(1,), dtype=float),
-                "angle": Box(low=-1, high=0.1, shape=(1,), dtype=float),
-                # angular velocity of the bar, negative: moves to the right, positive: moves to the left
-                "vel": Box(low=-1., high=1., shape=(1,), dtype=float),
-                "density1": Box(low=0., high=1., shape=(1,), dtype=float),
-                "density2": Box(low=0., high=1., shape=(1,), dtype=float),
-            })
+        } if not self.normalize else {
+            "pos1": Box(low=-1., high=1., shape=(1,), dtype=float),
+            "pos2": Box(low=-1., high=1., shape=(1,), dtype=float),
+            "angle": Box(low=-1, high=0.1, shape=(1,), dtype=float),
+            # angular velocity of the bar, negative: moves to the right, positive: moves to the left
+            "vel": Box(low=-1., high=1., shape=(1,), dtype=float),
+            "density1": Box(low=0., high=1., shape=(1,), dtype=float),
+            "density2": Box(low=0., high=1., shape=(1,), dtype=float),
+        }
 
+        if self.number_of_boxes == 3:  # need another added observation for the third box
+            if self.normalize:
+                observation_dict["pos3"] = Box(low=-1., high=1., shape=(1,), dtype=float)
+                observation_dict["density3"] = Box(low=0., high=1., shape=(1,), dtype=float)
+            else:
+                observation_dict["pos3"] = Box(low=-20., high=20., shape=(1,), dtype=float)
+                observation_dict["density3"] = Box(low=4., high=6., shape=(1,), dtype=float)
+
+        self.observation_space = spaces.Dict(spaces=observation_dict)  # convert to Spaces Dict
 
         """self.observation_space = spaces.Box(low=np.array([-20, -20, -0.390258252620697, -2., 4., 4.]), high=np.array([20, 20, 0.390258252620697, 2., 6., 6.]),
                                            shape=(6,), dtype=np.float32)"""
@@ -133,26 +151,10 @@ class ScaleExperiment(Framework, gym.Env):
         )
 
         self.boxes = []
-
-        # create Box A
-        if self.actions == 1:  # place left box randomly on scale
-            startingPositionA = self.np_random.uniform(- BARLENGTH + 2 * BOXSIZE, -2 * BOXSIZE)
-        elif self.actions == 2:
-            startingPositionA = - BARLENGTH - 3
-        if randomness:
-            self.randomDensityA = 4. + 2 * self.np_random.random()  # between 4 and 6
-            self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=self.randomDensityA,
-                                       boxsize=BOXSIZE)
-        else:
-            self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=DENSITY, boxsize=BOXSIZE)
-
-        startingPositionB = BARLENGTH + 3
-        if randomness:
-            self.randomDensityB = 4. + 2 * self.np_random.random()
-            self.boxB = self.createBox(pos_x=startingPositionB, pos_y=BOXSIZE, density=self.randomDensityB,
-                                       boxsize=BOXSIZE)
-        else:
-            self.boxB = self.createBox(pos_x=startingPositionB, pos_y=BOXSIZE, density=DENSITY, boxsize=BOXSIZE)
+        if self.number_of_boxes == 2:
+            self.boxes = self.resetTwoBoxes(randomness=self.randomness)
+        elif self.number_of_boxes == 3:
+            self.boxes = self.resetThreeBoxes(randomness=self.randomness)
 
         topCoordinate = Vec2(0, HEIGHT)
         self.triangle = self.world.CreateStaticBody(
@@ -167,22 +169,29 @@ class ScaleExperiment(Framework, gym.Env):
 
         self.joint = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=self.triangle, anchor=topCoordinate)
 
-        # calculate positions = distance to the center of the bar
-        pos1 = self.boxA.position[0] / math.cos(self.bar.angle)
-        pos2 = self.boxB.position[0] / math.cos(self.bar.angle)
-
-        if self.randomness:
+        # state calculation
+        if self.number_of_boxes == 2:
+            # calculate positions = distance to the center of the bar
+            pos1 = self.boxA.position[0] / math.cos(self.bar.angle)
+            pos2 = self.boxB.position[0] / math.cos(self.bar.angle)
             self.state = np.array([pos1, pos2,
                                    self.bar.angle, self.bar.angularVelocity,
-                                   self.randomDensityA, self.randomDensityB], dtype=np.float32)
-        else:
-            self.state = np.array([pos1, pos2,
+                                   self.randomDensityA if self.randomness else DENSITY,
+                                   self.randomDensityB if self.randomness else DENSITY], dtype=np.float32)
+        elif self.number_of_boxes == 3:
+            pos1 = self.boxA.position[0] / math.cos(self.bar.angle)
+            pos2 = self.boxB.position[0] / math.cos(self.bar.angle)
+            pos3 = self.boxC.position[0] / math.cos(self.bar.angle)
+            self.state = np.array([pos1, pos2, pos3,
                                    self.bar.angle, self.bar.angularVelocity,
-                                   DENSITY, DENSITY], dtype=np.float32)
+                                   self.randomDensityA if self.randomness else DENSITY,
+                                   self.randomDensityB if self.randomness else DENSITY,
+                                   self.randomDensityC if self.randomness else DENSITY], dtype=np.float32)
 
         self.normalized_state = None
 
-        self.maxAngle = self.getMaxAngle()
+        self.maxAngle = 0.390258252620697  #self.getMaxAngle() # todo: fix getMaxAngle funciton
+        return
 
     def ConvertScreenToWorld(self, x, y):
         """
@@ -197,6 +206,8 @@ class ScaleExperiment(Framework, gym.Env):
         Use this to have a good termination condition for the learning process.
         """
         self.maxAngle = math.pi / 2
+        if self.number_of_boxes == 3:
+            self.deleteBox(self.boxC)
         self.placeBox(self.boxA, - BARLENGTH + 2)
         self.placeBox(self.boxB, BARLENGTH + 3)
         self.internal_step(None)
@@ -245,6 +256,54 @@ class ScaleExperiment(Framework, gym.Env):
         self.boxes = []
         return
 
+    def resetTwoBoxes(self, randomness=False):
+        """Generate the 2 boxes and place them randomly if wished"""
+        if self.actions == 1:
+            startingPositionA = self.np_random.uniform(- BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE)
+        else:
+            startingPositionA = - BARLENGTH - 3
+        startingPositionB = BARLENGTH + 3
+
+        if self.randomness:
+            self.randomDensityA = 4. + 2 * self.np_random.random()  # between 4 and 6
+            self.randomDensityB = 4. + 2 * self.np_random.random()
+
+        self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE,
+                                   density=self.randomDensityA if self.randomness else DENSITY, boxsize=BOXSIZE)
+        self.boxB = self.createBox(pos_x=startingPositionB, pos_y=BOXSIZE,
+                                   density=self.randomDensityB if self.randomness else DENSITY, boxsize=BOXSIZE)
+
+        self.boxes = [self.boxA, self.boxB]
+        return self.boxes
+
+    def resetThreeBoxes(self, randomness=False):
+        """Generate the 3 boxes and place them randomly if wished"""
+        if self.actions == 1:
+            startingPositionA = self.np_random.uniform(- BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE)
+            startingPositionB = self.np_random.uniform(- BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE)
+            while abs(startingPositionA - startingPositionB) < 0.8 * BOXSIZE:  # try not to place both boxes on one another
+                startingPositionB = self.np_random.uniform(- BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE)
+                print(startingPositionB, startingPositionA-startingPositionB)
+        else:
+            startingPositionA = - BARLENGTH - 6
+            startingPositionB = - BARLENGTH - 3
+        startingPositionC = BARLENGTH + 3
+
+        if self.randomness:
+            self.randomDensityA = 4. + 2 * self.np_random.random()  # between 4 and 6
+            self.randomDensityB = 4. + 2 * self.np_random.random()
+            self.randomDensityC = 4. + 2 * self.np_random.random()
+
+        self.boxA = self.createBox(pos_x=startingPositionA, pos_y=0.8 * BOXSIZE,
+                                   density=self.randomDensityA if self.randomness else DENSITY, boxsize=0.8 * BOXSIZE)
+        self.boxB = self.createBox(pos_x=startingPositionB, pos_y=0.8 * BOXSIZE,
+                                   density=self.randomDensityB if self.randomness else DENSITY, boxsize=0.8 * BOXSIZE)
+        self.boxC = self.createBox(pos_x=startingPositionC, pos_y=BOXSIZE,
+                                   density=self.randomDensityC if self.randomness else DENSITY, boxsize=BOXSIZE)
+
+        self.boxes = [self.boxA, self.boxB, self.boxC]
+        return self.boxes
+
     def moveBox(self, box, deltaX, deltaY):
         """Move a box in the world along a given vector (deltaX,deltaY)"""
         x = box.position[0] + deltaX
@@ -278,15 +337,18 @@ class ScaleExperiment(Framework, gym.Env):
         """Resets and returns the current values of the state"""
         pos1 = self.boxA.position[0] / math.cos(self.bar.angle)
         pos2 = self.boxB.position[0] / math.cos(self.bar.angle)
-        if self.randomness:
-            self.state = np.array([pos1, pos2,
+        if self.number_of_boxes == 3:
+            pos3 = self.boxC.position[0] / math.cos(self.bar.angle)
+            self.state = np.array([pos1, pos2, pos3,
                                    self.bar.angle, self.bar.angularVelocity,
-                                   self.randomDensityA, self.randomDensityB], dtype=np.float32)
+                                   self.randomDensityA if self.randomness else DENSITY,
+                                   self.randomDensityB if self.randomness else DENSITY,
+                                   self.randomDensityC if self.randomness else DENSITY], dtype=np.float32)
         else:
             self.state = np.array([pos1, pos2,
                                    self.bar.angle, self.bar.angularVelocity,
-                                   DENSITY, DENSITY],
-                                  dtype=np.float32)  # densities cannot be accessed through the box object ...
+                                   self.randomDensityA if self.randomness else DENSITY,
+                                   self.randomDensityB if self.randomness else DENSITY], dtype=np.float32)
         if self.normalize:
             self.normalized_state = self.rescaleState()
         # print(self.state, self.normalized_state)
@@ -302,17 +364,80 @@ class ScaleExperiment(Framework, gym.Env):
         density2 = self.state[5] / 6."""
         if state is None:
             state = self.state
-        pos1 = rescale_movement([-20., 20.], state[0], [-1, 1])
-        pos2 = rescale_movement([-20., 20.], state[1], [-1, 1])
-        angle = rescale_movement([-self.maxAngle, self.maxAngle], state[2], [-1, 1])
-        angularVelocity = rescale_movement([-2., 2.], state[3], [-1, 1])
-        density1 = rescale_movement([0., 6.], state[4], [0, 1])   # other possibility: [4.,6.] -> [-1,1]
-        density2 = rescale_movement([0., 6.], state[5], [0, 1])
-        normalized_state = np.array([pos1, pos2,
-                                          angle, angularVelocity,
-                                          density1, density2],
-                                         dtype=np.float32)
+        if self.number_of_boxes == 2:
+            pos1 = rescale_movement([-20., 20.], state[0], [-1, 1])
+            pos2 = rescale_movement([-20., 20.], state[1], [-1, 1])
+            angle = rescale_movement([-self.maxAngle, self.maxAngle], state[2], [-1, 1])
+            angularVelocity = rescale_movement([-2., 2.], state[3], [-1, 1])
+            density1 = rescale_movement([0., 6.], state[4], [0, 1])  # other possibility: [4.,6.] -> [-1,1]
+            density2 = rescale_movement([0., 6.], state[5], [0, 1])
+            normalized_state = np.array([pos1, pos2,
+                                         angle, angularVelocity,
+                                         density1, density2],
+                                        dtype=np.float32)
+        elif self.number_of_boxes == 3:
+            pos1 = rescale_movement([-20., 20.], state[0], [-1, 1])
+            pos2 = rescale_movement([-20., 20.], state[1], [-1, 1])
+            pos3 = rescale_movement([-20., 20.], state[2], [-1, 1])
+            angle = rescale_movement([-self.maxAngle, self.maxAngle], state[3], [-1, 1])
+            angularVelocity = rescale_movement([-2., 2.], state[4], [-1, 1])
+            density1 = rescale_movement([0., 6.], state[5], [0, 1])  # other possibility: [4.,6.] -> [-1,1]
+            density2 = rescale_movement([0., 6.], state[6], [0, 1])
+            density3 = rescale_movement([0., 6.], state[7], [0, 1])
+            normalized_state = np.array([pos1, pos2, pos3,
+                                         angle, angularVelocity,
+                                         density1, density2, density3],
+                                        dtype=np.float32)
         return normalized_state
+
+    def performAction2Boxes(self, action):
+        """Place both boxes on the desired positions"""
+        # extract information from action
+        if self.actions == 1:
+            try:
+                box2_pos = action[0]
+            except IndexError:
+                box2_pos = action
+            if self.normalize:
+                box2_pos = rescale_movement([0, 1], box2_pos, [2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
+        elif self.actions == 2:
+            box1_pos = action[0]
+            box2_pos = action[1]
+            if self.normalize:
+                box1_pos = rescale_movement([0, 1], box1_pos, [-BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE])
+                box2_pos = rescale_movement([0, 1], box2_pos, [2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
+        # perform action
+        if self.actions > 1:
+            self.boxA = self.placeBox(self.boxA, box1_pos)
+        elif self.actions == 1:
+            self.boxA = self.placeBox(self.boxA, self.boxA.position[0])  # now place the box on the scale
+        self.boxB = self.placeBox(self.boxB, box2_pos)
+        return
+
+    def performAction3Boxes(self, action):
+        """Place all 3 boxes on the desired positions"""
+        # extract information from action
+        print(action)
+        if self.actions == 1:
+            box3_pos = action
+            if self.normalize:
+                box3_pos = rescale_movement([0, 1], box3_pos, [2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
+        elif self.actions == 2:
+            box1_pos = action[0]
+            box2_pos = action[1]
+            box3_pos = action[2]
+            if self.normalize:
+                box1_pos = rescale_movement([0, 1], box1_pos, [-BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE])
+                box2_pos = rescale_movement([0, 1], box2_pos, [-BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE])
+                box3_pos = rescale_movement([0, 1], box3_pos, [2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
+        # perform action
+        if self.actions > 1:
+            self.boxA = self.placeBox(self.boxA, box1_pos)
+            self.boxB = self.placeBox(self.boxB, box2_pos)
+        elif self.actions == 1:
+            self.boxA = self.placeBox(self.boxA, self.boxA.position[0])  # now place the box on the scale
+            self.boxB = self.placeBox(self.boxB, self.boxB.position[0])
+        self.boxC = self.placeBox(self.boxC, box3_pos)
 
     def step(self, action):
         """Actual step function called by the agent"""
@@ -334,6 +459,8 @@ class ScaleExperiment(Framework, gym.Env):
         def boxesOnScale():
             """Utility function to check if both boxes are still on the scale"""
             val = len(self.boxA.contacts) >= 1 and len(self.boxB.contacts) >= 1 and len(self.bar.contacts) == 2
+            if self.number_of_boxes == 3:
+                val = len(self.boxA.contacts) >= 1 and len(self.boxB.contacts) >= 1 and len(self.boxC.contacts) >= 1 and len(self.bar.contacts) == 3
             return val
 
         def getReward():
@@ -341,8 +468,7 @@ class ScaleExperiment(Framework, gym.Env):
             # Calculate reward (Scale in balance?)
             if boxesOnScale():
                 # both boxes on one side: negative reward
-                if (self.boxA.position[0] < 0 and self.boxB.position[0] < 0) \
-                        or (self.boxA.position[0] > 0 and self.boxB.position[0] > 0):
+                if self.number_of_boxes == 2 and (not (self.boxA.position[0] < 0 and self.boxB.position[0] > 0)) or self.number_of_boxes == 3 and (not (self.boxA.position[0] < 0 and self.boxB.position[0] < 0 and self.boxC.position[0] > 0)):
                     reward = -1  # (self.maxAngle - abs(self.bar.angle)) / self.maxAngle
                     self.timesteps -= 2
                 # box on balance
@@ -384,13 +510,16 @@ class ScaleExperiment(Framework, gym.Env):
             return state, reward, True, {}
 
         # check if no movement anymore
-        if self.state[3] == 0.0 and boxesOnScale():
+        if self.state[3 + int(self.number_of_boxes == 3)] == 0.0 and boxesOnScale():
             # check if time's up
             if self.counter > WAITINGITERATIONS:
                 # self.render()
                 state = self.resetState()
-                print(
-                    f"Match: {self.boxA.position[0]}\t{self.boxB.position[0]}\t{self.bar.angle}\t{20 * math.cos(self.bar.angle)}")
+                if self.number_of_boxes == 2:
+                    print(f"Match: {self.boxA.position[0]}\t{self.boxB.position[0]}\t{self.bar.angle}\t{20 * math.cos(self.bar.angle)}")
+                elif self.number_of_boxes == 3:
+                    print(
+                        f"Match: {self.boxA.position[0]}\t{self.boxB.position[0]}\t{self.boxC.position[0]}\t{self.bar.angle}\t{20 * math.cos(self.bar.angle)}")
                 reward = getReward()
                 self.reset()
                 if self.normalize:
@@ -414,28 +543,11 @@ class ScaleExperiment(Framework, gym.Env):
                 return self.rescaleState(), reward, False, {}
             return self.state, reward, False, {}
 
-        # extract information from action
-        if self.actions == 1:
-            try:
-                box2_pos = action[0]
-            except IndexError:
-                box2_pos = action
-            if self.normalize:
-                box2_pos = rescale_movement([0, 1], box2_pos, [2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
-        elif self.actions == 2:
-            box1_pos = action[0]
-            box2_pos = action[1]
-            if self.normalize:
-                box1_pos = rescale_movement([0, 1], box1_pos, [-BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE])
-                box2_pos = rescale_movement([0, 1], box2_pos, [2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
-
-
-                # perform action
-        if self.actions > 1:
-            self.boxA = self.placeBox(self.boxA, box1_pos)
-        elif self.actions == 1:
-            self.boxA = self.placeBox(self.boxA, self.boxA.position[0])  # now place the box on the scale
-        self.boxB = self.placeBox(self.boxB, box2_pos)
+        # Place the boxes
+        if self.number_of_boxes == 2:
+            self.performAction2Boxes(action=action)
+        elif self.number_of_boxes == 3:
+            self.performAction3Boxes(action=action)
 
         # Reset the collision points
         self.points = []
@@ -509,26 +621,10 @@ class ScaleExperiment(Framework, gym.Env):
     def reset(self):
         self.deleteAllBoxes()
 
-        if self.actions == 1:
-            startingPositionA = self.np_random.uniform(- BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE)
-        else:
-            startingPositionA = - BARLENGTH - 3
-        if self.randomness:
-            self.randomDensityA = 4. + 2 * self.np_random.random()  # between 4 and 6
-            self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=self.randomDensityA,
-                                       boxsize=BOXSIZE)
-        else:
-            self.boxA = self.createBox(pos_x=startingPositionA, pos_y=BOXSIZE, density=DENSITY, boxsize=BOXSIZE)
-
-        startingPositionB = BARLENGTH + 3
-        if self.randomness:
-            self.randomDensityB = 4. + 2 * self.np_random.random()
-            self.boxB = self.createBox(pos_x=startingPositionB, pos_y=BOXSIZE, density=self.randomDensityB,
-                                       boxsize=BOXSIZE)
-        else:
-            self.boxB = self.createBox(pos_x=startingPositionB, pos_y=BOXSIZE, density=DENSITY, boxsize=BOXSIZE)
-
-        self.boxes = [self.boxA, self.boxB]
+        if self.number_of_boxes == 2:
+            self.boxes = self.resetTwoBoxes(randomness=self.randomness)
+        elif self.number_of_boxes == 3:
+            self.boxes = self.resetThreeBoxes(randomness=self.randomness)
 
         # rearrange the bar to 0 degree
         self.bar.angle = 0

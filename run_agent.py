@@ -27,16 +27,16 @@ from rich.traceback import install
 install(show_locals=True)
 
 
-def create_envs(env_str, seed=42, do_render=True, randomness=False, normalize=False):
+def create_envs(env_str, seed=42, do_render=True, randomness=False, normalize=False, boxes=2):
     if env_str == 'scale':
         train_env = Scale(rendering=do_render)
         test_env = Scale(rendering=do_render)
     elif env_str == 'scale_exp':
-        train_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=2, normalize=normalize)
-        test_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=2, normalize=normalize)
+        train_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=2, normalize=normalize, boxes=boxes)
+        test_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=2, normalize=normalize, boxes=boxes)
     elif env_str == 'scale_single':
-        train_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=1, normalize=normalize)
-        test_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=1, normalize=normalize)
+        train_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=1, normalize=normalize, boxes=boxes)
+        test_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=1, normalize=normalize, boxes=boxes)
     else:
         train_env = GymEnv(env_str)
         train_env = train_env.create()
@@ -121,6 +121,7 @@ if __name__ == '__main__':
     parser.add_argument('--disable_xvfb', action='store_true')
     parser.add_argument('--location', type=str, default="")
     parser.add_argument('--normalize', action='store_true')
+    parser.add_argument('--boxes', type=int, default=2)
     args = parser.parse_args()
 
     if not args.disable_xvfb:
@@ -132,7 +133,7 @@ if __name__ == '__main__':
 
     if not args.test:  # train + test new agent
         train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=False,  # args.rendering,
-                                          randomness=args.randomness, normalize=args.normalize)
+                                          randomness=args.randomness, normalize=args.normalize, boxes=args.boxes)
         input_dim, output_dim = get_env_dims(train_env)
         # agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
         if args.agent == 'sac':
