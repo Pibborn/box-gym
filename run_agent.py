@@ -2,6 +2,7 @@ import time
 
 import matplotlib
 
+from agents.OtherAgents.SRAgent import SRAgent
 from agents.StableBaselinesAgents.A2CAgent import A2CAgent
 matplotlib.rcParams['backend'] = 'WebAgg'
 try:
@@ -170,6 +171,7 @@ if __name__ == '__main__':
                 args.location = 'SAC_Model'
             args.location = f"savedagents/{args.location}"
             agent.agent = SAC.load(args.location, env=test_env)
+            agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")
         elif args.agent == 'a2c':
             agent = A2CAgent(input_dim, output_dim, lr=args.lr)
             test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
@@ -177,10 +179,14 @@ if __name__ == '__main__':
                 args.location = 'A2C_Model'
             args.location = f"savedagents/{args.location}"
             agent.agent = A2C.load(args.location, env=test_env)
+            agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")
+        elif args.agent == 'sr':
+            formula = "(x1 * (x2 * -0.99871546) * inv(x3))"
+            formula = "((x1 * -0.998) / (x3 / x2))"     #"div(mul(X0, -0.998), div(X2, X1))"
+            agent = SRAgent(input_dim, output_dim, function=formula)
         else:
             raise ValueError('Agent string {} not recognized'.format(args.agent))
         #agent.load_agent(args.location)
-        agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")
 
         # test_env = agent.agent.get_env()  # maybe the better solution?
 

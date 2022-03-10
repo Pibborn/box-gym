@@ -7,7 +7,6 @@ class SACAgent(StableBaselinesAgent):
         super().__init__(input_dim, output_dim)
         self.agent = None
         self.lr = lr
-        pass
 
     def create_model(self, train_env, policy='MlpPolicy', verbose=1, use_sde=False, lr=1e-4):
         """self.agent = stable_baselines3.sac.SAC("MlpPolicy", train_env, learning_rate=0.0003, buffer_size=1000000, learning_starts=100,

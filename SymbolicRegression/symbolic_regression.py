@@ -3,6 +3,7 @@ from pysr import PySRRegressor
 import pandas as pd
 
 if __name__ == "__main__":
+    random_densities = True
     df = pd.read_csv("savedagents/" + "results", sep="\t")
     df = df.drop(df.columns[0], axis=1)
     df = df.reset_index()  # make sure indexes pair with number of rows
@@ -14,11 +15,18 @@ if __name__ == "__main__":
     size1 = df.loc[:,"Boxsize 1"][:]
     size2 = df.loc[:,"Boxsize 2"][:]
 
-    left = np.array(list(zip(pos1, den1)))
-    right = np.array(list(zip(pos2, den2)))
+    if not random_densities:
+        left = np.array(list(zip(pos1, den1)))
+        right = np.array(list(zip(pos2, den2)))
 
-    input = np.array(list(zip(pos1, den1, den2)))
-    output = np.array(pos2)
+        input = np.array(list(zip(pos1, den1, den2)))
+        output = np.array(pos2)
+    else:
+        left = np.array(list(zip(pos1, den1, size1)))
+        right = np.array(list(zip(pos2, den2, size2)))
+
+        input = np.array(list(zip(pos1, den1, den2, size1, size2)))
+        output = np.array(pos2)
 
     model = PySRRegressor(
         niterations=5,

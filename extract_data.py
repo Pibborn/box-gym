@@ -1,8 +1,11 @@
 import argparse
+import math
+
 import pandas as pd
 
 from stable_baselines3 import SAC
 import run_agent
+from ScaleEnvironment.ScaleExperiment import rescale_movement
 from agents.StableBaselinesAgents.SACAgent import SACAgent
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
@@ -14,9 +17,9 @@ def writeData(env, agent, config):
                        'Boxsize 1': pd.Series(dtype='float'),
                        'Boxsize 2': pd.Series(dtype='float')})
     test_matches = 0
-
+    env.seed(1080)
     test_env = DummyVecEnv([lambda: env])
-    test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
+    #test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
 
     for episode in range(1, config.episodes + 1):
         state = test_env.reset()  # torch.tensor(env.reset())
@@ -25,17 +28,24 @@ def writeData(env, agent, config):
         done = False
         while not done:
             action, states = agent.agent.predict(state, deterministic=True)
-            state, reward, done, _ = env.step(action)
+            #pos1 = test_env.venv.boxA.position[0] / math.cos(test_env.venv.bar.angle)
+            #state = test_env.get_original_obs()
+            pos1 = rescale_movement([-1, 1], state[0][0], [-20, 20])
+            den1 = rescale_movement([0, 1], state[0][4], [4, 6])
+            den2 = rescale_movement([0, 1], state[0][5], [4, 6])
+            size1 = rescale_movement([0, 1], state[0][6], [0.8, 1.2])
+            size2 = rescale_movement([0, 1], state[0][7], [0.8, 1.2])
+            state, reward, done, info = env.step(action[0])
             R += reward
             t += 1
             reset = t == 200
             if done or reset:
                 break
         if R > 1:
-            pos1, pos2 = state[0], state[1]
-            den1, den2 = state[4], state[5]
-            size1, size2 = 1.0, 1.0
-            df.loc[test_matches] = [pos1, pos2, den1, den2, size1, size2]
+            if env.actions == 2:
+                df.loc[test_matches] = [action[0][0], action[0][1], den1, den2, size1, size2]
+            else:  # different things to track
+                df.loc[test_matches] = [pos1, action[0][0], den1, den2, size1, size2]
             test_matches += 1
             #print(state)
             #df2 = pd.DataFrame([[]], columns=list('AB'))
@@ -43,11 +53,11 @@ def writeData(env, agent, config):
     print(
         f"Success rate of test episodes: {test_matches}/{config.episodes}={(test_matches / config.episodes * 100):,.2f}%")
     #print(df)
-    df.to_csv(f"savedagents/{config.path}", sep="\t")
+    df.to_csv(f"savedagents/{config.path}.csv")
     return
 
 def readData(env, config):
-    df = pd.read_csv(f"savedagents/{config.path}", sep="\t")
+    df = pd.read_csv(f"savedagents/{config.path}")
     df = df.drop(df.columns[0], axis=1)
     df = df.reset_index()  # make sure indexes pair with number of rows
     env.reset()
@@ -77,6 +87,7 @@ if __name__ == '__main__':
     parser.add_argument('--reward-norm', action='store_true')
     parser.add_argument('--normalize', action='store_true')
     parser.add_argument('--path', type=str, default='results')
+    parser.add_argument('--mode', type=int, default=1)
     args = parser.parse_args()
 
     _, test_env = run_agent.create_envs(args.envname, seed=args.seed, do_render=args.rendering,
@@ -93,16 +104,8 @@ if __name__ == '__main__':
 
         raise NotImplementedError("not implemented")
 
-    mode = 2
-
-    if mode == 1:
+    if args.mode == 1:
         writeData(env=test_env, agent=agent, config=args)
 
     else:
         readData(env=test_env, config=args)
-
-    """if True:
-        readData()"""
-
-
-

@@ -31,6 +31,8 @@ class StableBaselinesAgent(Agent):
         done = False
         while not done:
             action, states = self.agent.predict(state, deterministic=True)
+            if env.actions == 2:   # todo: fix
+                action = action[0]
             state, reward, done, _ = env.step(action)
             R += reward
             t += 1
@@ -67,8 +69,8 @@ class StableBaselinesAgent(Agent):
 
         train_env = DummyVecEnv([lambda: train_env])
         test_env = DummyVecEnv([lambda: test_env])
-        train_env = VecNormalize(train_env, norm_obs=True, norm_reward=config.reward_norm)
-        test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
+        #train_env = VecNormalize(train_env, norm_obs=True, norm_reward=config.reward_norm)
+        #test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
         # train_env = VecVideoRecorder(train_env, 'videos', record_video_trigger=lambda x: x % PRINT_EVERY == 0, video_length=200) # todo: Video
 
         wandb_callback = WandbCallback(gradient_save_freq=config.printevery,
@@ -80,15 +82,15 @@ class StableBaselinesAgent(Agent):
                                                  is_test=True)
 
         self.agent = self.create_model(train_env, policy='MlpPolicy', verbose=verbose, use_sde=sde)
-        """self.agent.learn(MAX_EPISODES, log_interval=PRINT_EVERY, eval_env=test_env, eval_freq=PRINT_EVERY,
+        self.agent.learn(MAX_EPISODES, log_interval=PRINT_EVERY, eval_env=test_env, eval_freq=PRINT_EVERY,
                          callback=[wandb_callback, train_success_callback, test_success_callback],
                          eval_log_path='agents/temp')
 
         # try to load the model & test it
-        self.agent.save("SAC_Model_test")   # location is just a placeholder for now, could be replaced with extra parameter
+        """self.agent.save("SAC_Model_test")   # location is just a placeholder for now, could be replaced with extra parameter
         del self.agent
         self.agent = SAC.load("SAC_Model_test")"""
-        self.test_loop(test_env, config=config, verbose=1)
+        #self.test_loop(test_env, config=config, verbose=1) # todo: doesn't work somehow
         self.evaluate_model(test_env=test_env, config=config)
 
     def save_agent(self, location):
