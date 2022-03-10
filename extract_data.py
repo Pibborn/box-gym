@@ -81,7 +81,8 @@ if __name__ == '__main__':
     parser.add_argument('--episodes', type=int, default=10000)
     parser.add_argument('--trials', type=int, default=100)
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--randomness', action='store_true')
+    parser.add_argument('--random_densities', action='store_true')
+    parser.add_argument('--random_boxsizes', action='store_true')
     parser.add_argument('--rendering', action='store_true')
     parser.add_argument('--location', type=str, default="")
     parser.add_argument('--reward-norm', action='store_true')
@@ -91,7 +92,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     _, test_env = run_agent.create_envs(args.envname, seed=args.seed, do_render=args.rendering,
-                                        randomness=args.randomness, normalize=args.normalize)
+                                        random_densities=args.random_densities, random_boxsizes=args.random_boxsizes,
+                                        normalize=args.normalize)
     input_dim, output_dim = run_agent.get_env_dims(test_env)
     if args.agent == 'sac':
         agent = SACAgent(input_dim, output_dim)

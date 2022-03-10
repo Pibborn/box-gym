@@ -4,6 +4,7 @@ import matplotlib
 
 from agents.OtherAgents.SRAgent import SRAgent
 from agents.StableBaselinesAgents.A2CAgent import A2CAgent
+
 matplotlib.rcParams['backend'] = 'WebAgg'
 try:
     import cPickle as pickle
@@ -25,19 +26,25 @@ import wandb
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common.utils import set_random_seed
 from rich.traceback import install
+
 install(show_locals=True)
 
 
-def create_envs(env_str, seed=42, do_render=True, randomness=False, normalize=False, boxes=2):
+def create_envs(env_str, seed=42, do_render=True, random_densities=False, random_boxsizes=False, normalize=False,
+                boxes=2):
     if env_str == 'scale':
         train_env = Scale(rendering=do_render)
         test_env = Scale(rendering=do_render)
     elif env_str == 'scale_exp':
-        train_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=2, normalize=normalize, boxes=boxes)
-        test_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=2, normalize=normalize, boxes=boxes)
+        train_env = ScaleExperiment(rendering=do_render, random_densities=random_densities,
+                                    random_boxsizes=random_boxsizes, actions=2, normalize=normalize, boxes=boxes)
+        test_env = ScaleExperiment(rendering=do_render, random_densities=random_densities,
+                                   random_boxsizes=random_boxsizes, actions=2, normalize=normalize, boxes=boxes)
     elif env_str == 'scale_single':
-        train_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=1, normalize=normalize, boxes=boxes)
-        test_env = ScaleExperiment(rendering=do_render, randomness=randomness, actions=1, normalize=normalize, boxes=boxes)
+        train_env = ScaleExperiment(rendering=do_render, random_densities=random_densities,
+                                    random_boxsizes=random_boxsizes, actions=1, normalize=normalize, boxes=boxes)
+        test_env = ScaleExperiment(rendering=do_render, random_densities=random_densities,
+                                   random_boxsizes=random_boxsizes, actions=1, normalize=normalize, boxes=boxes)
     else:
         train_env = GymEnv(env_str)
         train_env = train_env.create()
@@ -105,14 +112,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--envname', type=str, default='scale_single')
     parser.add_argument('--agent', type=str, default='sac')
-    parser.add_argument('--seed', type=int, default=42)                                 # old default: 42
-    parser.add_argument('--episodes', type=int, default=10000)                          # old default: 1000
+    parser.add_argument('--seed', type=int, default=42)  # old default: 42
+    parser.add_argument('--episodes', type=int, default=10000)  # old default: 1000
     parser.add_argument('--trials', type=int, default=100)
-    parser.add_argument('--printevery', type=int, default=500)                         # old default: 10
-    parser.add_argument('--discount', type=float, default=0.99)                         # old default: 0.99
-    parser.add_argument('--threshold', type=float, default=20.1)                        # old default: 475
-    parser.add_argument('--dropout', type=float, default=0.2)                           # old default: 0.2
-    parser.add_argument('--randomness', action='store_true')                       # old default: False
+    parser.add_argument('--printevery', type=int, default=500)  # old default: 10
+    parser.add_argument('--discount', type=float, default=0.99)  # old default: 0.99
+    parser.add_argument('--threshold', type=float, default=20.1)  # old default: 475
+    parser.add_argument('--dropout', type=float, default=0.2)  # old default: 0.2
+    parser.add_argument('--random_densities', action='store_true')
+    parser.add_argument('--random_boxsizes', action='store_true')
     parser.add_argument('--rendering', action='store_true')
     parser.add_argument('--overwriting', action='store_true')
     parser.add_argument('--entity', type=str, default='jgu-wandb')
@@ -127,6 +135,7 @@ if __name__ == '__main__':
 
     if not args.disable_xvfb:
         from xvfbwrapper import Xvfb
+
         vdisplay = Xvfb()
         vdisplay.start()
 
@@ -134,7 +143,8 @@ if __name__ == '__main__':
 
     if not args.test:  # train + test new agent
         train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=False,  # args.rendering,
-                                          randomness=args.randomness, normalize=args.normalize, boxes=args.boxes)
+                                          random_densities=args.random_densities, random_boxsizes=args.random_boxsizes,
+                                          normalize=args.normalize, boxes=args.boxes)
         input_dim, output_dim = get_env_dims(train_env)
         # agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
         if args.agent == 'sac':
@@ -162,7 +172,8 @@ if __name__ == '__main__':
     else:  # load old agent and test him
         # load the agent
         train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.rendering,
-                                          randomness=args.randomness, normalize=args.normalize)
+                                          random_densities=args.random_densities, random_boxsizes=args.random_boxsizes,
+                                          normalize=args.normalize)
         input_dim, output_dim = get_env_dims(test_env)
         if args.agent == 'sac':
             agent = SACAgent(input_dim, output_dim, lr=args.lr)
@@ -182,11 +193,11 @@ if __name__ == '__main__':
             agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")
         elif args.agent == 'sr':
             formula = "(x1 * (x2 * -0.99871546) * inv(x3))"
-            formula = "((x1 * -0.998) / (x3 / x2))"     #"div(mul(X0, -0.998), div(X2, X1))"
+            formula = "((x1 * -0.998) / (x3 / x2))"  # "div(mul(X0, -0.998), div(X2, X1))"
             agent = SRAgent(input_dim, output_dim, function=formula)
         else:
             raise ValueError('Agent string {} not recognized'.format(args.agent))
-        #agent.load_agent(args.location)
+        # agent.load_agent(args.location)
 
         # test_env = agent.agent.get_env()  # maybe the better solution?
 
@@ -195,6 +206,6 @@ if __name__ == '__main__':
         # use the loaded agent
         print(train_env.action_space, test_env.action_space)
         mean_test_rewards = agent.test_loop(test_env=test_env, config=args, verbose=1)
-        #mean_test_rewards = agent.evaluate_model(test_env=test_env, config=args)
+        # mean_test_rewards = agent.evaluate_model(test_env=test_env, config=args)
     end_time = time.time()
     print(end_time - start_time)

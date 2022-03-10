@@ -18,7 +18,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('envname')
 parser.add_argument('--steps', type=int, default=5000)
 parser.add_argument('--entity', type=str, default='jgu-wandb')
-parser.add_argument('--random', action='store_true')
+parser.add_argument('--random_densities', action='store_true')
+parser.add_argument('--random_boxsizes', action='store_true')
 args = parser.parse_args()
 
 # wandb init
@@ -27,7 +28,7 @@ wandb.init(config=args, project="box-gym", entity=args.entity, sync_tensorboard=
 # Instantiate the env
 from ScaleEnvironment.ScaleExperiment import ScaleExperiment
 
-env = ScaleExperiment(rendering=False, randomness=args.random, actions=2)
+env = ScaleExperiment(rendering=False, random_densities=args.random_densities, random_boxsizes=args.random_boxsizes, actions=2)
 low = [env.observation_space[x].low[0] for x in env.observation_space]
 high = [env.observation_space[x].high[0] for x in env.observation_space]
 env.observation_space = spaces.Box(low=np.array(low), high=np.array(high),
@@ -60,7 +61,7 @@ success = 0
 #evaluate_policy(model, env, n_eval_episodes=10, render=True)
 
 obs = env.reset()
-env = ScaleExperiment(rendering=True, randomness=args.random, actions=2)
+env = ScaleExperiment(rendering=True, random_densities=args.random_densities, random_boxsizes=args.random_boxsizes, actions=2)
 while True:
     for _ in range(100):
         action, states = model.predict(obs)
