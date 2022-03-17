@@ -26,7 +26,9 @@ from time import time, sleep
 
 import numpy as np
 import pygame
+
 from Box2D import b2Color, b2Vec2, b2DrawExtended
+from gym import spaces
 from gym.spaces import Discrete, Dict, Box
 from gym.utils import seeding
 from pyglet.math import Vec2
@@ -36,89 +38,108 @@ import Box2D
 from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape)
 
 import gym
+import torch
 
 BOXSIZE = 1.0
 DENSITY = 5.0
-BARLENGTH = 15
+BARLENGTH = 15  # 18
 
 FAULTTOLERANCE = 0.001  # for the angle of the bar
-ANGLE_TRESHHOLD = 0.80
+ANGLE_TRESHOLD = 0.98
 
 WAITINGITERATIONS = 20  # maximum iterations to wait per episode
 MAXITERATIONS = 1000
 
+
 def rescale_movement(original_interval, value, to_interval=(-BARLENGTH, +BARLENGTH)):
     a, b = original_interval
     c, d = to_interval
-    return c + ((d-c) / (b-a)) * (value-a)
+    return c + ((d - c) / (b - a)) * (value - a)
+
 
 class Scale(Framework, gym.Env):
     """You can use this class as an outline for your tests."""
-    name = "Scale"  # Name of the class to display
+    name = "ScaleExperiment"  # Name of the class to display
 
-    def __init__(self, rendering = True):
-        """
-        Initialize all of your objects here.
-        Be sure to call the Framework's initializer first.
-        """
+    def __init__(self, rendering=True, random_densities=True, random_boxsizes=False, normalize=False, placed=1,
+                 actions=1, sides=2):
         super(Scale, self).__init__(rendering)
 
+        self.np_random = None
         self.seed()
 
+        self.num_envs = 1  # for stable-baseline3
+
         # Initialize all of the objects
-        self.y, L, a, b = 6.0 + BOXSIZE, 12.0, 1.0, 2.0
+        self.y = 6.0 + BOXSIZE
+        HEIGHT = 6  # height of the bar joint
 
         self.counter = 0
-        #self.timesteps = 0
+        self.timesteps = 0
         self.reward = 0
 
-        self.rendering = rendering
+        self.rendering = rendering  # should the simulation be rendered or not
+        self.random_densities = random_densities  # random densities or are both the same
+        self.random_boxsizes = random_boxsizes
+        self.normalize = normalize
+        self.placed = placed
+        self.actions = actions
+        self.sides = sides
+        if self.actions <= 0 or self.placed < 0:
+            assert ValueError("Should be one or more actions and a positive number of placed boxes")
+        if self.sides not in {1, 2}:
+            assert ValueError("Sides value should be either 1 or 2")
 
-        # fixed parameters: weight of object A and the positions of both boxes
-        # ??
+        # action space determination
+        limit1, limit2 = BARLENGTH - 2 * BOXSIZE, 2 * BOXSIZE
+        if not self.normalize:
+            self.action_space = gym.spaces.Box(
+                low=np.array([-limit1 if not self.sides == 1 else limit2 for _ in range(actions)]),
+                high=np.array([limit1 for _ in range(actions)]),
+                shape=(self.actions,), dtype=np.float32)
+        else:
+            self.action_space = gym.spaces.Box(low=np.array([-1 if self.sides == 2 else 0 for _ in range(actions)]),
+                                               high=np.array([1 for _ in range(actions)]),
+                                               shape=(1,), dtype=np.float32)
 
-        #########################################################################
-        # delta_pos: move box along the bar with this value
-        # box: 0 --> BoxA, 1 --> BoxB
-        self.action_space = Dict({
-            "delta_pos": Box(low=-1., high=+1., shape=(1, 1), dtype=float),
-            "box": Discrete(2)  # 0: BoxA, 1: BoxB
-        })
-
-        self.observation_space = Dict(spaces={
-            "pos1": Box(low=-20., high=20., shape=(1,), dtype=float),
-            "pos2": Box(low=-20., high=20., shape=(1,), dtype=float),
-            "angle": Box(low=-390258252620697, high=390258252620697, shape=(1,), dtype=float),  # 0: BoxA, 1: BoxB,
+        # observation space
+        observation_dict = {
+            "angle": Box(low=-0.390258252620697, high=0.390258252620697, shape=(1,), dtype=float),
             # angular velocity of the bar, negative: moves to the right, positive: moves to the left
             "vel": Box(low=-2., high=2., shape=(1,), dtype=float),
-            "density1": Box(low=4., high=6., shape=(1,), dtype=float),
-            "density2": Box(low=4., high=6., shape=(1,), dtype=float),
-        })
+        } if not self.normalize else {
+            "angle": Box(low=-1, high=1., shape=(1,), dtype=float),
+            "vel": Box(low=-1., high=1., shape=(1,), dtype=float),
+        }
+
+        for i in range(1, self.placed + self.actions + 1):
+            observation_dict[f"position{i}"] = Box(low=-1. if self.normalize else -20.,
+                                                   high=1. if self.normalize else 20., shape=(1,), dtype=float)
+            observation_dict[f"density{i}"] = Box(low=0. if self.normalize else 4.,
+                                                  high=1. if self.normalize else 6., shape=(1,), dtype=float)
+            observation_dict[f"boxsize{i}"] = Box(low=0. if self.normalize else 0.8,
+                                                  high=1. if self.normalize else 1.2, shape=(1,), dtype=float)
+
+        self.observation_space = spaces.Dict(spaces=observation_dict)  # convert to Spaces Dict
+
+        """self.observation_space = spaces.Box(low=np.array([-20, -20, -0.390258252620697, -2., 4., 4.]), high=np.array([20, 20, 0.390258252620697, 2., 6., 6.]),
+                                           shape=(6,), dtype=np.float32)"""
 
         # setting up the objects on the screen
-        # The ground
         self.ground = self.world.CreateStaticBody(
             shapes=[Box2D.b2.edgeShape(vertices=[(-40, 0), (40, 0)])]
         )
 
-        self.boxes = []
+        self.maxAngle = 0.390258252620697  # self.getMaxAngle() # todo: fix getMaxAngle function
 
-        # create Box A
-        randomPositionA = -4. - 2 * random.random()  # between -4 and -6
-        randomDensityA = 4. + 2 * random.random()  # between 4 and 6
-        self.boxA = self.createBox(randomPositionA, self.y, DENSITY, BOXSIZE)
+        self.boxes = {}
+        self.resetBoxes()
 
-        randomPositionB = 4. + 2 * random.random()
-        randomDensityB = 4. + 2 * random.random()
-        self.boxB = self.createBox(randomPositionB, self.y, DENSITY, BOXSIZE)
-
-        topCoordinate = Vec2(0, 6)
+        topCoordinate = Vec2(0, HEIGHT)
         self.triangle = self.world.CreateStaticBody(
             position=(0, 0),
             fixtures=fixtureDef(shape=polygonShape(vertices=[(-1, 0), (1, 0), topCoordinate]), density=100)
         )
-
-        # TODO: set triangle green when the scale is leveled, red when the angle is not 0°
 
         self.bar = self.world.CreateDynamicBody(
             position=topCoordinate,
@@ -127,11 +148,11 @@ class Scale(Framework, gym.Env):
 
         self.joint = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=self.triangle, anchor=topCoordinate)
 
-        pos1 = self.boxA.position[0] / math.cos(self.bar.angle) # position along the bar (= distance to the center)
-        pos2 = self.boxB.position[0] / math.cos(self.bar.angle)
-        self.state = [pos1, pos2,
-                      self.bar.angle, self.bar.angularVelocity,
-                      DENSITY, DENSITY]
+        # state calculation
+        self.state = self.resetState()
+
+        self.normalized_state = None
+        return
 
     def ConvertScreenToWorld(self, x, y):
         """
@@ -140,114 +161,288 @@ class Scale(Framework, gym.Env):
         return Vec2((x + self.viewOffset.x) / self.viewZoom,
                     ((self.screenSize.y - y + self.viewOffset.y) / self.viewZoom))
 
-    def createBox(self, pos_x, pos_y=None, density=DENSITY, boxsize=BOXSIZE):
+    def getMaxAngle(self):
+        """
+        Only called at start to calculate the biggest possible angle.
+        Use this to have a good termination condition for the learning process.
+        """
+        self.maxAngle = math.pi / 2
+        self.placeBox(self.boxes[1], - BARLENGTH + 2)
+        self.placeBox(self.boxes[2], BARLENGTH + 3)
+        self.internal_step(None)
+        while self.bar.angularVelocity != 0:
+            self.internal_step(None)
+        angle = self.bar.angle
+        self.reset()
+        return abs(angle)
+
+    def createBox(self, pos_x, pos_y=None, density=DENSITY, boxsize=BOXSIZE, index=0):
         """Create a new box on the screen
         Input values: position as x and y coordinate, density and size of the box"""
+        try:  # todo: fix
+            pos_x = float(pos_x[0])
+            pos_y = float(pos_y[0])
+        except:
+            pass
         if not pos_y:
             pos_y = self.y
-
         newBox = self.world.CreateDynamicBody(
             position=(pos_x, pos_y),
             fixtures=fixtureDef(shape=polygonShape(box=(boxsize, boxsize)),
                                 density=density, friction=1.),
             userData=boxsize,  # save this because you somehow cannot access fixture data later
         )
-        self.boxes.append(newBox)
+        if index == 0:
+            index = len(self.boxes.values()) + 1
+        self.boxes[index] = newBox
         return newBox
 
     def deleteBox(self, box):  # todo: fix, maybe ID for every b2Body object
         """Delete a box from the world"""
-        if box not in self.boxes:
+        if box not in self.boxes.values():
             print("Box not found")
             return
-        pos = self.boxes.index(box)
-        self.boxes.pop(pos)
+        key = list(self.boxes.keys())[list(self.boxes.values()).index(box)]
+        del self.boxes[key]
         self.world.DestroyBody(box)
         return
 
     def deleteAllBoxes(self):
         """Deletes every single box in the world"""
-        for box in self.boxes:
+        for box in self.boxes.values():
             try:
                 self.world.DestroyBody(box)
             except Exception as e:
                 print(e)
-        self.boxes = []
+        self.boxes = {}
         return
 
-    def moveBox(self, box, deltaX, deltaY):
+    def resetBoxes(self):
+        """Generate the boxes and place all of the ones that are supposed to be placed randomly"""
+
+        def overlapping(boxes=[]):
+            """Help function to determine whether two boxes would overlap when trying to place them to their
+            starting positions given their sizes"""
+            for (i, (box_position1, box_size1)) in enumerate(boxes):
+                for (box_position2, box_size2) in boxes[i + 1:]:
+                    # check if the ranges of the boxes overlap
+                    if max(0, min(box_position1 + box_size1, box_position2 + box_size2) -
+                              max(box_position1 - box_size1, box_position2 - box_size2)) > 0:
+                        return True
+            return False
+
+        # choose positions and sizes for boxes
+        boxes = []
+        while (len(boxes) < self.placed):
+            if self.sides == 1:
+                position = self.np_random.uniform(- BARLENGTH + 2 * BOXSIZE, -2 * BOXSIZE)
+            else:
+                position = self.np_random.uniform(- BARLENGTH + 2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE)
+            boxsize = self.np_random.uniform(0.8, 1.2) if self.random_boxsizes else BOXSIZE
+            if not overlapping(boxes + [(position, boxsize)]):
+                boxes.append((position, boxsize))
+
+        # save values of densities and box sizes and place the boxes
+        self.boxes = {}
+        self.densities = {}
+        self.boxsizes = {}
+        self.positions = {}
+        i = 0
+        for (i, (pos, size)) in enumerate(boxes, start=1):
+            density = 4. + 2 * self.np_random.random()  # between 4 and 6
+            box = self.createBox(pos_x=pos, pos_y=size,
+                                 density=density if self.random_densities else DENSITY,
+                                 boxsize=size if self.random_boxsizes else BOXSIZE,
+                                 index=i)
+            self.boxes[i] = box
+            self.densities[i] = density if self.random_densities else DENSITY
+            self.boxsizes[i] = size if self.random_boxsizes else BOXSIZE
+            self.positions[i] = pos
+
+        # generate the boxes that should be placed randomly
+        for j in range(self.actions):
+            index = i + j + 1
+            position = - BARLENGTH - 2 * j * BOXSIZE
+            boxsize = self.np_random.uniform(0.8, 1.2) if self.random_boxsizes else BOXSIZE
+            density = 4. + 2 * self.np_random.random()
+            box = self.createBox(pos_x=position, pos_y=boxsize,
+                                 density=density if self.random_densities else DENSITY,
+                                 boxsize=boxsize if self.random_boxsizes else BOXSIZE,
+                                 index=index)
+            self.boxes[index] = box
+            self.densities[index] = density if self.random_densities else DENSITY
+            self.boxsizes[index] = boxsize if self.random_boxsizes else BOXSIZE
+            self.positions[index] = position
+        return self.boxes
+
+    def moveBox(self, box, deltaX, deltaY, index=0):
         """Move a box in the world along a given vector (deltaX,deltaY)"""
         x = box.position[0] + deltaX
         y = box.position[1] + deltaY
-        return self.moveBoxTo(box, x, y)
+        return self.moveBoxTo(box, x, y, index)
 
-    def moveBoxTo(self, box, x, y):
+    def moveBoxTo(self, box, x, y, index=0):
         """Place a box at a specific position on the field"""
         self.deleteBox(box)
         boxsize = box.userData  # self.fixedBoxSize
         density = box.mass / (4 * boxsize)  # DENSITY
-        movedBox = self.createBox(x, y, density, boxsize)
+        movedBox = self.createBox(x, y, density, boxsize, index=index)
         return movedBox
 
-    def placeBox(self, box, pos):
+    def placeBox(self, box, pos, index=0):
         "Place a box on the scale"
         x = math.cos(self.bar.angle) * pos
         y = 6 + math.tan(self.bar.angle) * pos + BOXSIZE
-        placedBox = self.moveBoxTo(box, x, y)
+        placedBox = self.moveBoxTo(box, x, y, index=index)
         placedBox.angle = self.bar.angle
         return placedBox
 
-    def moveAlongBar(self, box, delta_pos):
+    def moveAlongBar(self, box, delta_pos, index=0):
         """Take a box and move it along the bar with a """
         # recalculate the position on the bar
         pos = box.position[0] / math.cos(self.bar.angle)
         pos += delta_pos
-        return self.placeBox(box, pos)
+        return self.placeBox(box, pos, index=index)
 
     def resetState(self):
         """Resets and returns the current values of the state"""
-        pos1 = self.boxA.position[0] / math.cos(self.bar.angle)
-        pos2 = self.boxB.position[0] / math.cos(self.bar.angle)
-        self.state = [pos1, pos2,
-                      self.bar.angle, self.bar.angularVelocity,
-                      self.state[4], self.state[5]]  # densities cannot be accessed through the box object ...
+        positions = []
+        densities = []
+        boxsizes = []
+        for i in range(1, self.placed + self.actions + 1):
+            box = self.boxes[i]
+            pos = box.position[0] / math.cos(self.bar.angle)
+            positions.append(pos)
+            densities.append(self.densities[i])
+            boxsizes.append(self.boxsizes[i])
+        self.state = np.array(positions + [self.bar.angle, self.bar.angularVelocity] + densities + boxsizes,
+                              dtype=np.float32)
+
+        if self.normalize:
+            self.normalized_state = self.rescaleState()
+        # print(self.state, self.normalized_state)
         return self.state
+
+    def rescaleState(self, state=None):
+        """Returns normalized version of the state"""
+        if state is None:
+            state = self.state
+
+        n = self.actions + self.placed
+        positions: list[float] = rescale_movement([-20., 20.], self.state[0:n], [-1., 1.])
+        angle: float = rescale_movement([-self.maxAngle, self.maxAngle], state[2], [-1, 1])
+        angularVelocity: float = rescale_movement([-2., 2.], state[3], [-1, 1])
+        densities: list[float] = rescale_movement([0., 6.], self.state[n + 2:2 * n + 2], [0., 1.])
+        boxsizes: list[float] = rescale_movement([0.8, 1.2], self.state[2 * n + 2:3 * n + 2], [0., 1.])
+        normalized_state = np.concatenate((positions, [angle], [angularVelocity], densities, boxsizes))
+        return normalized_state
+
+    def performActions(self, actions):
+        if self.normalize:
+            if self.sides == 1:
+                actions = rescale_movement([0., 1.], actions, [2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
+            else:
+                actions = rescale_movement([-1., 1.], actions, [-BARLENGTH + 2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
+
+        i = 0
+        for i in range(1, self.placed + 1):
+            self.boxes[i] = self.placeBox(self.boxes[i], self.boxes[i].position[0], index=i)
+        try:
+            for j, action in enumerate(actions):
+                self.boxes[i + j + 1] = self.placeBox(self.boxes[i + j + 1], action, index=i + j + 1)
+        except:
+            self.boxes[i + 1] = self.placeBox(self.boxes[i + 1], actions, index=i + 1)
+        return
+
+    def performAction2Boxes(self, action):
+        """Place both boxes on the desired positions"""
+        # extract information from action
+        if self.actions == 1:
+            """try:
+                box2_pos = action[0]
+            except IndexError or TypeError:
+                box2_pos = action"""
+            box2_pos = action
+            if self.normalize:
+                box2_pos = rescale_movement([0, 1], box2_pos, [2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
+        elif self.actions == 2:
+            box1_pos = action[0]
+            box2_pos = action[1]
+            if self.normalize:
+                box1_pos = rescale_movement([0, 1], box1_pos, [-BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE])
+                box2_pos = rescale_movement([0, 1], box2_pos, [2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
+        # perform action
+        if self.actions > 1:
+            self.boxA = self.placeBox(self.boxA, box1_pos)
+        elif self.actions == 1:
+            self.boxA = self.placeBox(self.boxA, self.boxA.position[0])  # now place the box on the scale
+        self.boxB = self.placeBox(self.boxB, box2_pos)
+        return
+
+    def performAction3Boxes(self, action):
+        """Place all 3 boxes on the desired positions"""
+        # extract information from action
+        print(action)
+        if self.actions == 1:
+            box3_pos = action
+            if self.normalize:
+                box3_pos = rescale_movement([0, 1], box3_pos, [2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
+        elif self.actions == 2:
+            box1_pos = action[0]
+            box2_pos = action[1]
+            box3_pos = action[2]
+            if self.normalize:
+                box1_pos = rescale_movement([0, 1], box1_pos, [-BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE])
+                box2_pos = rescale_movement([0, 1], box2_pos, [-BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE])
+                box3_pos = rescale_movement([0, 1], box3_pos, [2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
+        # perform action
+        if self.actions > 1:
+            self.boxA = self.placeBox(self.boxA, box1_pos)
+            self.boxB = self.placeBox(self.boxB, box2_pos)
+        elif self.actions == 1:
+            self.boxA = self.placeBox(self.boxA, self.boxA.position[0])  # now place the box on the scale
+            self.boxB = self.placeBox(self.boxB, self.boxB.position[0])
+        self.boxC = self.placeBox(self.boxC, box3_pos)
 
     def step(self, action):
         """Actual step function called by the agent"""
-        state, _, _, _ = self.internal_step(action)
-        done = False
-        for _ in range(50):
-            if not done:
-                self.state, reward, done, info = self.internal_step()
-            else:
-                return self.state, reward, done, info
+        timesteps = 120
+        self.action = action
+        for _ in range(timesteps):
+            self.old_state = self.state
+            self.state, reward, done, info = self.internal_step(action)
+            action = None
+            if done:
+                break
+        if not done:
+            done = True
+            self.reset()
         return self.state, reward, done, info
 
     def internal_step(self, action=None):
         """Simulates the program with the given action and returns the observations"""
+
         def boxesOnScale():
             """Utility function to check if both boxes are still on the scale"""
-            val = len(self.boxA.contacts) >= 1 and len(self.boxB.contacts) >= 1 and len(self.bar.contacts) == 2
-            return val
+            boxes = np.array(list(self.boxes.values()))
+            for box in list(self.boxes.values()):
+                if len(box.contacts) < 1:
+                    return False
+            val = len(self.bar.contacts) == self.actions + self.placed
+            return True # val
 
         def getReward():
             """Calculates the reward and adds it to the self.reward value"""
             # Calculate reward (Scale in balance?)
             if boxesOnScale():
                 # both boxes on one side: negative reward
-                if (self.boxA.position[0] < 0 and self.boxB.position[0] < 0) \
-                        or (self.boxA.position[0] > 0 and self.boxB.position[0] > 0):
-                    reward = - (0.390258252620697 - abs(self.bar.angle)) / 0.390258252620697
-                    self.timesteps -= 2
-                # box on balance
-                elif abs(self.bar.angle) < FAULTTOLERANCE and boxesOnScale():
+                if abs(self.bar.angle) < FAULTTOLERANCE and boxesOnScale():
                     reward = 1
                 else:
-                    reward = (0.390258252620697 - abs(self.bar.angle)) / 0.390258252620697
-                self.reward += reward # todo: fix self.reward
-            else:
-                reward = 0
+                    reward = (self.maxAngle - abs(self.bar.angle)) / self.maxAngle
+                self.reward += reward
+            else:  # one or both boxes not on the scale
+                reward = - 1
             return reward
 
         # Don't do anything if the setting's Hz are <= 0
@@ -263,48 +458,55 @@ class Scale(Framework, gym.Env):
             timeStep = 0.0
 
         self.counter += 1
-        #self.timesteps += 1
+        self.timesteps += 1
 
-        # check if test failed --> return reward = -1
-        if (abs(self.bar.angle) > 0.390
-                or self.boxA.position[0] > 0
-                or self.boxB.position[0] < 0):
+        # check if test failed --> return reward
+        if (abs(self.bar.angle) > ANGLE_TRESHOLD * self.maxAngle
+                or self.timesteps > MAXITERATIONS):
             state = self.resetState().copy()
+            # reward = self.reward / self.timesteps
+            # reward = self.timesteps
+            reward = getReward()
             self.render()
             self.reset()
-            return state, -1, True, {}
+            if self.normalize:
+                return self.rescaleState(state), reward, True, {}
+            return state, reward, True, {}
 
         # check if no movement anymore
-        if self.state[3] == 0.0:
+        if self.state[1 + self.actions + self.placed] == 0.0 and boxesOnScale():
             # check if time's up
             if self.counter > WAITINGITERATIONS:
                 # self.render()
                 state = self.resetState()
-                print("Match:", self.boxA.position[0], self.boxB.position[0], self.bar.angle, getReward())
-                reward = 3 * getReward() # todo: better reward
+                tab = '\t'
+                print(f"Match: [{tab.join([str(box.position[0] / math.cos(self.bar.angle)) for box in self.boxes.values()])}]\t{self.bar.angle}\t{20 * math.cos(self.bar.angle)}")
+                reward = getReward()
+                #print(self.action)
                 self.reset()
-                return state, reward, True, {}
+                if self.normalize:
+                    return self.rescaleState(state), 20 * math.cos(self.bar.angle), True, {}
+                return state, 20 * math.cos(self.bar.angle), True, {}
+                # return state, 2 * MAXITERATIONS * math.cos(self.bar.angle), True, {}
         else:  # no movement --> reset counter
             self.counter = 0
 
         # catch special case that no action was executed
-        if not action:
+        if action is None:
             self.world.Step(timeStep, velocityIterations,
                             positionIterations)
             self.world.ClearForces()
             self.render()
+            getReward()
+            reward = getReward()
+            # reward = self.timesteps
             self.state = self.resetState()
-            return self.state, 0, False, {}
+            if self.normalize:
+                return self.rescaleState(), reward, False, {}
+            return self.state, reward, False, {}
 
-        # extract information from action
-        delta_pos = action["delta_pos"][0, 0]
-        box = action["box"]
-
-        # perform action
-        if box == 0:
-            self.boxA = self.moveAlongBar(self.boxA, delta_pos)
-        elif box == 1:
-            self.boxB = self.moveAlongBar(self.boxB, delta_pos)
+        # Place the boxes
+        self.performActions(actions=action)
 
         # Reset the collision points
         self.points = []
@@ -319,6 +521,8 @@ class Scale(Framework, gym.Env):
 
         # Calculate reward (Scale in balance?)
         reward = getReward()
+        # reward = self.timesteps   # old version
+        # reward == self.reward / self.timesteps
 
         # no movement and in balance --> done
         # velocities = [self.bar.linearVelocity, self.boxA.linearVelocity, self.boxB.linearVelocity]
@@ -328,9 +532,9 @@ class Scale(Framework, gym.Env):
         info = {}
 
         self.render()
-        if reward < 0:
-            print(reward)
 
+        if self.normalize:
+            return self.rescaleState(), reward, done, info
         return self.state, reward, done, info
 
     def close(self):
@@ -376,15 +580,7 @@ class Scale(Framework, gym.Env):
     def reset(self):
         self.deleteAllBoxes()
 
-        randomPositionA = self.np_random.uniform(-6, -4)
-        randomDensityA = self.np_random.uniform(4, 6)
-        self.boxA = self.createBox(pos_x=randomPositionA, pos_y=self.y, density=DENSITY, boxsize=BOXSIZE)
-
-        randomPositionB = self.np_random.uniform(4, 6)
-        randomDensityB = self.np_random.uniform(4, 6)
-        self.boxB = self.createBox(pos_x=randomPositionB, pos_y=self.y, density=DENSITY, boxsize=BOXSIZE)
-
-        self.boxes = [self.boxA, self.boxB]
+        self.resetBoxes()
 
         # rearrange the bar to 0 degree
         self.bar.angle = 0
@@ -397,7 +593,8 @@ class Scale(Framework, gym.Env):
 
         # return the observation
         self.resetState()
-        return self.state #self.step(None)[0]
+        return self.rescaleState() if self.normalize else self.state
+        # return self.state
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -408,4 +605,4 @@ class Scale(Framework, gym.Env):
 # See the other testbed examples for more information.
 
 if __name__ == "__main__":
-    main(Scale)
+    main(ScaleExperiment)

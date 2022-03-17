@@ -30,7 +30,7 @@ class SRAgent(Agent):
             x1 = rescale_movement([-1., 1.], state[0], [-20., 20.])
             x2 = rescale_movement([0., 1.], state[4], [0., 6.])  # other possibility: [4.,6.] -> [-1,1]
             x3 = rescale_movement([0., 1.], state[5], [0., 6.])
-            x4 = 1.0  # box size of left box
+            x4 = 1.0  # box size of left box  #todo: include box sizes
             x5 = 1.0  # box size of right box
             action = eval(self.function)
             # print(action)

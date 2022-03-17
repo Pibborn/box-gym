@@ -31,20 +31,23 @@ install(show_locals=True)
 
 
 def create_envs(env_str, seed=42, do_render=True, random_densities=False, random_boxsizes=False, normalize=False,
-                boxes=2):
+                placed=1, actions=1, sides=2):
     if env_str == 'scale':
-        train_env = Scale(rendering=do_render)
-        test_env = Scale(rendering=do_render)
+        train_env = Scale(rendering=do_render, random_densities=random_densities,
+                          random_boxsizes=random_boxsizes, normalize=normalize,
+                          placed=placed, actions=actions, sides=sides)
+        test_env = Scale(rendering=do_render, random_densities=random_densities,
+                         random_boxsizes=random_boxsizes, placed=placed, actions=actions, normalize=normalize)
     elif env_str == 'scale_exp':
         train_env = ScaleExperiment(rendering=do_render, random_densities=random_densities,
-                                    random_boxsizes=random_boxsizes, actions=2, normalize=normalize, boxes=boxes)
+                                    random_boxsizes=random_boxsizes, actions=2, normalize=normalize, boxes=2)
         test_env = ScaleExperiment(rendering=do_render, random_densities=random_densities,
-                                   random_boxsizes=random_boxsizes, actions=2, normalize=normalize, boxes=boxes)
+                                   random_boxsizes=random_boxsizes, actions=2, normalize=normalize, boxes=2)
     elif env_str == 'scale_single':
         train_env = ScaleExperiment(rendering=do_render, random_densities=random_densities,
-                                    random_boxsizes=random_boxsizes, actions=1, normalize=normalize, boxes=boxes)
+                                    random_boxsizes=random_boxsizes, actions=1, normalize=normalize, boxes=2)
         test_env = ScaleExperiment(rendering=do_render, random_densities=random_densities,
-                                   random_boxsizes=random_boxsizes, actions=1, normalize=normalize, boxes=boxes)
+                                   random_boxsizes=random_boxsizes, actions=1, normalize=normalize, boxes=2)
     else:
         train_env = GymEnv(env_str)
         train_env = train_env.create()
@@ -130,7 +133,9 @@ if __name__ == '__main__':
     parser.add_argument('--disable_xvfb', action='store_true')
     parser.add_argument('--location', type=str, default="")
     parser.add_argument('--normalize', action='store_true')
-    parser.add_argument('--boxes', type=int, default=2)
+    parser.add_argument('--placed', type=int, default=1)
+    parser.add_argument('--actions', type=int, default=1)
+    parser.add_argument('--sides', type=int, default=2)
     args = parser.parse_args()
 
     if not args.disable_xvfb:
@@ -142,9 +147,9 @@ if __name__ == '__main__':
     wandb.init(project="box-gym", entity=args.entity, config=args, sync_tensorboard=True)
 
     if not args.test:  # train + test new agent
-        train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=False,  # args.rendering,
+        train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.rendering,  # args.rendering,
                                           random_densities=args.random_densities, random_boxsizes=args.random_boxsizes,
-                                          normalize=args.normalize, boxes=args.boxes)
+                                          normalize=args.normalize, placed=args.placed, actions=args.actions, sides=args.sides)
         input_dim, output_dim = get_env_dims(train_env)
         # agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
         if args.agent == 'sac':
@@ -157,7 +162,7 @@ if __name__ == '__main__':
                 args.location = "A2C_Model"
         else:
             raise ValueError('Agent string {} not recognized'.format(args.agent))
-        args.location = f"savedagents/{args.location}"
+        args.location = f"savedagents/models/{args.location}"
         # agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=args.dropout, uses_scale=args.envname=='scale',
         #                     scale_exp=args.envname=='scale_exp')
         agent.train_loop(train_env, test_env, args, verbose=1, only_testing=False)
@@ -166,34 +171,35 @@ if __name__ == '__main__':
             agent.agent.save(args.location)
             # agent.save_agent(args.location)   # could also do this...
             print(f"Saved model {args.agent} to location {args.location}.zip")
-            agent.agent.save_replay_buffer(f"{args.location}_replay_buffer")
-            print(f"Saved replay buffer from training to location {args.location}_replay_buffer.pkl")
+            # agent.agent.save_replay_buffer(f"{args.location}_replay_buffer")
+            # print(f"Saved replay buffer from training to location {args.location}_replay_buffer.pkl")
 
     else:  # load old agent and test him
         # load the agent
         train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.rendering,
                                           random_densities=args.random_densities, random_boxsizes=args.random_boxsizes,
-                                          normalize=args.normalize)
+                                          normalize=args.normalize, placed=args.placed, actions=args.actions, sides=args.sides)
         input_dim, output_dim = get_env_dims(test_env)
         if args.agent == 'sac':
             agent = SACAgent(input_dim, output_dim, lr=args.lr)
             test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
             if args.location == "":
                 args.location = 'SAC_Model'
-            args.location = f"savedagents/{args.location}"
+            args.location = f"savedagents/models/{args.location}"
             agent.agent = SAC.load(args.location, env=test_env)
-            agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")
+            # agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")
         elif args.agent == 'a2c':
             agent = A2CAgent(input_dim, output_dim, lr=args.lr)
             test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
             if args.location == "":
                 args.location = 'A2C_Model'
-            args.location = f"savedagents/{args.location}"
+            args.location = f"savedagents/models/{args.location}"
             agent.agent = A2C.load(args.location, env=test_env)
-            agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")
+            # agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")
         elif args.agent == 'sr':
             formula = "(x1 * (x2 * -0.99871546) * inv(x3))"
             formula = "((x1 * -0.998) / (x3 / x2))"  # "div(mul(X0, -0.998), div(X2, X1))"
+            formula = "((-0.005 - x1) / (x3 / x2))"
             agent = SRAgent(input_dim, output_dim, function=formula)
         else:
             raise ValueError('Agent string {} not recognized'.format(args.agent))

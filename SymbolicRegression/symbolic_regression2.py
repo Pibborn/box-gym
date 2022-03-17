@@ -3,8 +3,8 @@ from gplearn.genetic import SymbolicRegressor
 import numpy as np
 
 if __name__ == "__main__":
-    random_densities = True
-    df = pd.read_csv("savedagents/results7.csv")
+    random_boxsizes = False
+    df = pd.read_csv("savedagents/extracted_data/results_new_environment.csv")
     #df = df.drop(df.columns[0], axis=1)
     df = df.reset_index()  # make sure indexes pair with number of rows
 
@@ -15,7 +15,7 @@ if __name__ == "__main__":
     size1 = df.loc[:, "Boxsize 1"][:]
     size2 = df.loc[:, "Boxsize 2"][:]
 
-    if not random_densities:
+    if not random_boxsizes:
         left = np.array(list(zip(pos1, den1)))
         right = np.array(list(zip(pos2, den2)))
 
@@ -30,8 +30,8 @@ if __name__ == "__main__":
 
 
     est_gp = SymbolicRegressor(
-        population_size=50000,
-        generations=30,
+        population_size=50000,  #todo: increase
+        generations=50,
         stopping_criteria=0.01,
         p_crossover=0.7, p_subtree_mutation=0.1,
         p_hoist_mutation=0.05,

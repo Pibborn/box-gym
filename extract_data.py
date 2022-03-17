@@ -30,11 +30,18 @@ def writeData(env, agent, config):
             action, states = agent.agent.predict(state, deterministic=True)
             #pos1 = test_env.venv.boxA.position[0] / math.cos(test_env.venv.bar.angle)
             #state = test_env.get_original_obs()
-            pos1 = rescale_movement([-1, 1], state[0][0], [-20, 20])
-            den1 = rescale_movement([0, 1], state[0][4], [4, 6])
-            den2 = rescale_movement([0, 1], state[0][5], [4, 6])
-            size1 = rescale_movement([0, 1], state[0][6], [0.8, 1.2])
-            size2 = rescale_movement([0, 1], state[0][7], [0.8, 1.2])
+            if config.normalize:
+                pos1 = rescale_movement([-1, 1], state[0][0], [-20, 20])
+                den1 = rescale_movement([0, 1], state[0][4], [4, 6])
+                den2 = rescale_movement([0, 1], state[0][5], [4, 6])
+                size1 = rescale_movement([0, 1], state[0][6], [0.8, 1.2])
+                size2 = rescale_movement([0, 1], state[0][7], [0.8, 1.2])
+            else:
+                pos1 = state[0][0]
+                den1 = state[0][4]
+                den2 = state[0][5]
+                size1 = state[0][6]
+                size2 = state[0][7]
             state, reward, done, info = env.step(action[0])
             R += reward
             t += 1
@@ -53,11 +60,11 @@ def writeData(env, agent, config):
     print(
         f"Success rate of test episodes: {test_matches}/{config.episodes}={(test_matches / config.episodes * 100):,.2f}%")
     #print(df)
-    df.to_csv(f"savedagents/{config.path}.csv")
+    df.to_csv(f"savedagents/extracted_data/{config.path}.csv")
     return
 
 def readData(env, config):
-    df = pd.read_csv(f"savedagents/{config.path}")
+    df = pd.read_csv(f"savedagents/extracted_data/{config.path}.csv")
     df = df.drop(df.columns[0], axis=1)
     df = df.reset_index()  # make sure indexes pair with number of rows
     env.reset()
@@ -100,7 +107,7 @@ if __name__ == '__main__':
         test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
         if args.location == "":
             args.location = 'SAC_Model'
-        args.location = f"savedagents/{args.location}"
+        args.location = f"savedagents/models/{args.location}"
         agent.agent = SAC.load(args.location, env=test_env)
     else:
 

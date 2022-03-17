@@ -31,8 +31,8 @@ class StableBaselinesAgent(Agent):
         done = False
         while not done:
             action, states = self.agent.predict(state, deterministic=True)
-            if env.actions == 2:   # todo: fix
-                action = action[0]
+            """if env.actions == 2:   # todo: fix
+                action = action[0]"""
             state, reward, done, _ = env.step(action)
             R += reward
             t += 1
@@ -90,7 +90,7 @@ class StableBaselinesAgent(Agent):
         """self.agent.save("SAC_Model_test")   # location is just a placeholder for now, could be replaced with extra parameter
         del self.agent
         self.agent = SAC.load("SAC_Model_test")"""
-        #self.test_loop(test_env, config=config, verbose=1) # todo: doesn't work somehow
+        self.test_loop(test_env, config=config, verbose=1) # todo: doesn't work somehow
         self.evaluate_model(test_env=test_env, config=config)
 
     def save_agent(self, location):

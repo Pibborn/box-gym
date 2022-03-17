@@ -30,7 +30,7 @@ if __name__ == "__main__":
         input = np.array(list(zip(pos1, den1, den2, size1, size2)))
         output = np.array(pos2)
 
-    goal_function = "(-pos1 * den1 * size1 ** 3) / (den2 * size2 ** 3)"
+    goal_function = "(-pos1 * den1 * (2 * size1) ** 3) / (den2 * (2 * size2) ** 3)"
     observed_functions = ["((((size1 *  (pos1 - 1.4712403)) * 1 / ((-1.1480063 * (size2 + 0.07193513)) * size2)) * size1) - 0.3220555)",
                           ]
 
@@ -42,8 +42,6 @@ if __name__ == "__main__":
 
     optimal_mse = np.nansum((pos2 - eval(goal_function)) ** 2) / len(pos1)
     print(f"Mean squared error for goal function 'pos2 = {goal_function}': {optimal_mse}")
-    print(pos2)
-    print(eval(goal_function))
 
     #print(errors.sorted(lambda x: x))
 

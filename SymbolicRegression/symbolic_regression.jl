@@ -3,13 +3,13 @@ using SymbolicRegression
 using CSV
 using DataFrames
 
-random_densities = true
+random_boxsizes = false
 
-df = DataFrame(CSV.File("savedagents/results7.csv"))
+df = DataFrame(CSV.File("savedagents/extracted_data/results_new_environment.csv"))
 df = select!(df, Not("Column1")) # cut the first column
 #println(df)
 
-if (random_densities)
+if (random_boxsizes)
     X = Matrix(df[:, ["Position 1", "Density 1", "Density 2", "Boxsize 1", "Boxsize 2"]])
 else
     X = Matrix(df[:, ["Position 1", "Density 1", "Density 2"]])
