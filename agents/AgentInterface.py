@@ -34,8 +34,10 @@ class Agent(ABC, torch.nn.Module):
         # not the best solution
         low = [obs_space[x].low[0] for x in obs_space]
         high = [obs_space[x].high[0] for x in obs_space]
+        #shape = obs_space[list(obs_space)[0]].shape[2]
         observation_space = spaces.Box(low=np.array(low), high=np.array(high),
-                                       shape=(len(low),), dtype=np.float32)
+                                       #shape=(shape,), # todo: fix shape
+                                       dtype=np.float32)
         return observation_space
 
     @abstractmethod

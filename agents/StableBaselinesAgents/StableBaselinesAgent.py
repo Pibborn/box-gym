@@ -64,8 +64,9 @@ class StableBaselinesAgent(Agent):
         PRINT_EVERY = config.printevery
         action_size = self.output_dim  # train_env.action_space.low.size
 
-        train_env.observation_space = self.convert_observation_space(train_env.observation_space)
-        test_env.observation_space = self.convert_observation_space(test_env.observation_space)
+        if not config.raw_pixels:
+            train_env.observation_space = self.convert_observation_space(train_env.observation_space)
+            test_env.observation_space = self.convert_observation_space(test_env.observation_space)
 
         train_env = DummyVecEnv([lambda: train_env])
         test_env = DummyVecEnv([lambda: test_env])
@@ -129,7 +130,7 @@ class StableBaselinesAgent(Agent):
         test_matches = 0
         # action_size = self.output_dim  # train_env.action_space.low.size
 
-        if type(test_env.observation_space) != gym.spaces.box.Box:  # if not already converted to Box
+        if type(test_env.observation_space) != gym.spaces.box.Box and not config.raw_pixels:  # if not already converted to Box
             test_env.observation_space = self.convert_observation_space(test_env.observation_space)
 
         test_env = DummyVecEnv([lambda: test_env])

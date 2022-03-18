@@ -31,13 +31,14 @@ install(show_locals=True)
 
 
 def create_envs(env_str, seed=42, do_render=True, random_densities=False, random_boxsizes=False, normalize=False,
-                placed=1, actions=1, sides=2):
+                placed=1, actions=1, sides=2, raw_pixels=False):
     if env_str == 'scale':
         train_env = Scale(rendering=do_render, random_densities=random_densities,
                           random_boxsizes=random_boxsizes, normalize=normalize,
-                          placed=placed, actions=actions, sides=sides)
+                          placed=placed, actions=actions, sides=sides, raw_pixels=raw_pixels)
         test_env = Scale(rendering=do_render, random_densities=random_densities,
-                         random_boxsizes=random_boxsizes, placed=placed, actions=actions, normalize=normalize)
+                          random_boxsizes=random_boxsizes, normalize=normalize,
+                          placed=placed, actions=actions, sides=sides, raw_pixels=raw_pixels)
     elif env_str == 'scale_exp':
         train_env = ScaleExperiment(rendering=do_render, random_densities=random_densities,
                                     random_boxsizes=random_boxsizes, actions=2, normalize=normalize, boxes=2)
@@ -136,6 +137,7 @@ if __name__ == '__main__':
     parser.add_argument('--placed', type=int, default=1)
     parser.add_argument('--actions', type=int, default=1)
     parser.add_argument('--sides', type=int, default=2)
+    parser.add_argument('--raw_pixels', action='store_true')
     args = parser.parse_args()
 
     if not args.disable_xvfb:
@@ -147,9 +149,10 @@ if __name__ == '__main__':
     wandb.init(project="box-gym", entity=args.entity, config=args, sync_tensorboard=True)
 
     if not args.test:  # train + test new agent
-        train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.rendering,  # args.rendering,
+        train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.rendering,
                                           random_densities=args.random_densities, random_boxsizes=args.random_boxsizes,
-                                          normalize=args.normalize, placed=args.placed, actions=args.actions, sides=args.sides)
+                                          normalize=args.normalize, placed=args.placed, actions=args.actions,
+                                          sides=args.sides, raw_pixels=args.raw_pixels)
         input_dim, output_dim = get_env_dims(train_env)
         # agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
         if args.agent == 'sac':

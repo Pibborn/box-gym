@@ -59,11 +59,12 @@ def fix_vertices(vertices):
     return [(int(SCREEN_OFFSETX + v[0]), int(SCREEN_OFFSETY - v[1])) for v in vertices]
 
 
-def _draw_polygon(polygon, screen, body, fixture):
+def _draw_polygon(polygon, screen, body, fixture, visible=True):
     transform = body.transform
     vertices = fix_vertices([transform * v * PPM for v in polygon.vertices])
+    color = colors[body.type] if visible else (10, 10, 10, 255)
     pygame.draw.polygon(
-        screen, [c / 2.0 for c in colors[body.type]], vertices, 0)
+        screen, [c / 2.0 for c in color], vertices, 0)
     pygame.draw.polygon(screen, colors[body.type], vertices, 1)
 polygonShape.draw = _draw_polygon
 

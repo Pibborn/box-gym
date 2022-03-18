@@ -62,7 +62,7 @@ class Scale(Framework, gym.Env):
     name = "ScaleExperiment"  # Name of the class to display
 
     def __init__(self, rendering=True, random_densities=True, random_boxsizes=False, normalize=False, placed=1,
-                 actions=1, sides=2):
+                 actions=1, sides=2, raw_pixels=False):
         super(Scale, self).__init__(rendering)
 
         self.np_random = None
@@ -89,6 +89,7 @@ class Scale(Framework, gym.Env):
             assert ValueError("Should be one or more actions and a positive number of placed boxes")
         if self.sides not in {1, 2}:
             assert ValueError("Sides value should be either 1 or 2")
+        self.raw_pixels = raw_pixels
 
         # action space determination
         limit1, limit2 = BARLENGTH - 2 * BOXSIZE, 2 * BOXSIZE
@@ -103,24 +104,28 @@ class Scale(Framework, gym.Env):
                                                shape=(1,), dtype=np.float32)
 
         # observation space
-        observation_dict = {
-            "angle": Box(low=-0.390258252620697, high=0.390258252620697, shape=(1,), dtype=float),
-            # angular velocity of the bar, negative: moves to the right, positive: moves to the left
-            "vel": Box(low=-2., high=2., shape=(1,), dtype=float),
-        } if not self.normalize else {
-            "angle": Box(low=-1, high=1., shape=(1,), dtype=float),
-            "vel": Box(low=-1., high=1., shape=(1,), dtype=float),
-        }
+        if not raw_pixels:
+            observation_dict = {
+                "angle": Box(low=-0.390258252620697, high=0.390258252620697, shape=(1,), dtype=float),
+                # angular velocity of the bar, negative: moves to the right, positive: moves to the left
+                "vel": Box(low=-2., high=2., shape=(1,), dtype=float),
+            } if not self.normalize else {
+                "angle": Box(low=-1, high=1., shape=(1,), dtype=float),
+                "vel": Box(low=-1., high=1., shape=(1,), dtype=float),
+            }
 
-        for i in range(1, self.placed + self.actions + 1):
-            observation_dict[f"position{i}"] = Box(low=-1. if self.normalize else -20.,
-                                                   high=1. if self.normalize else 20., shape=(1,), dtype=float)
-            observation_dict[f"density{i}"] = Box(low=0. if self.normalize else 4.,
-                                                  high=1. if self.normalize else 6., shape=(1,), dtype=float)
-            observation_dict[f"boxsize{i}"] = Box(low=0. if self.normalize else 0.8,
-                                                  high=1. if self.normalize else 1.2, shape=(1,), dtype=float)
+            for i in range(1, self.placed + self.actions + 1):
+                observation_dict[f"position{i}"] = Box(low=-1. if self.normalize else -20.,
+                                                       high=1. if self.normalize else 20., shape=(1,), dtype=float)
+                observation_dict[f"density{i}"] = Box(low=0. if self.normalize else 4.,
+                                                      high=1. if self.normalize else 6., shape=(1,), dtype=float)
+                observation_dict[f"boxsize{i}"] = Box(low=0. if self.normalize else 0.8,
+                                                      high=1. if self.normalize else 1.2, shape=(1,), dtype=float)
 
-        self.observation_space = spaces.Dict(spaces=observation_dict)  # convert to Spaces Dict
+            self.observation_space = spaces.Dict(spaces=observation_dict)  # convert to Spaces Dict
+
+        else:
+            self.observation_space = spaces.Box(low=0, high=255, shape=(640, 480, 3), dtype=np.uint8)
 
         """self.observation_space = spaces.Box(low=np.array([-20, -20, -0.390258252620697, -2., 4., 4.]), high=np.array([20, 20, 0.390258252620697, 2., 6., 6.]),
                                            shape=(6,), dtype=np.float32)"""
@@ -131,9 +136,6 @@ class Scale(Framework, gym.Env):
         )
 
         self.maxAngle = 0.390258252620697  # self.getMaxAngle() # todo: fix getMaxAngle function
-
-        self.boxes = {}
-        self.resetBoxes()
 
         topCoordinate = Vec2(0, HEIGHT)
         self.triangle = self.world.CreateStaticBody(
@@ -148,7 +150,13 @@ class Scale(Framework, gym.Env):
 
         self.joint = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=self.triangle, anchor=topCoordinate)
 
+        self.boxes = {}
+        # self.resetBoxes()
+        self.reset()
+
         # state calculation
+        self.state = None
+        self.internal_state = None
         self.state = self.resetState()
 
         self.normalized_state = None
@@ -176,7 +184,7 @@ class Scale(Framework, gym.Env):
         self.reset()
         return abs(angle)
 
-    def createBox(self, pos_x, pos_y=None, density=DENSITY, boxsize=BOXSIZE, index=0):
+    def createBox(self, pos_x, pos_y=None, density=DENSITY, boxsize=BOXSIZE, index=0, static=False):
         """Create a new box on the screen
         Input values: position as x and y coordinate, density and size of the box"""
         try:  # todo: fix
@@ -186,18 +194,26 @@ class Scale(Framework, gym.Env):
             pass
         if not pos_y:
             pos_y = self.y
-        newBox = self.world.CreateDynamicBody(
-            position=(pos_x, pos_y),
-            fixtures=fixtureDef(shape=polygonShape(box=(boxsize, boxsize)),
-                                density=density, friction=1.),
-            userData=boxsize,  # save this because you somehow cannot access fixture data later
-        )
+        if static:
+            newBox = self.world.CreateStaticBody(
+                position=(pos_x, pos_y),
+                fixtures=fixtureDef(shape=polygonShape(box=(boxsize, boxsize)),
+                                    density=density, friction=1.),
+                userData=boxsize,  # save this because you somehow cannot access fixture data later
+            )
+        else:
+            newBox = self.world.CreateDynamicBody(
+                position=(pos_x, pos_y),
+                fixtures=fixtureDef(shape=polygonShape(box=(boxsize, boxsize)),
+                                    density=density, friction=1.),
+                userData=boxsize,  # save this because you somehow cannot access fixture data later
+            )
         if index == 0:
             index = len(self.boxes.values()) + 1
         self.boxes[index] = newBox
         return newBox
 
-    def deleteBox(self, box):  # todo: fix, maybe ID for every b2Body object
+    def deleteBox(self, box):
         """Delete a box from the world"""
         if box not in self.boxes.values():
             print("Box not found")
@@ -220,9 +236,11 @@ class Scale(Framework, gym.Env):
     def resetBoxes(self):
         """Generate the boxes and place all of the ones that are supposed to be placed randomly"""
 
-        def overlapping(boxes=[]):
+        def overlapping(boxes=None):
             """Help function to determine whether two boxes would overlap when trying to place them to their
             starting positions given their sizes"""
+            if boxes is None:
+                boxes = []
             for (i, (box_position1, box_size1)) in enumerate(boxes):
                 for (box_position2, box_size2) in boxes[i + 1:]:
                     # check if the ranges of the boxes overlap
@@ -253,7 +271,7 @@ class Scale(Framework, gym.Env):
             box = self.createBox(pos_x=pos, pos_y=size,
                                  density=density if self.random_densities else DENSITY,
                                  boxsize=size if self.random_boxsizes else BOXSIZE,
-                                 index=i)
+                                 index=i, static=False)
             self.boxes[i] = box
             self.densities[i] = density if self.random_densities else DENSITY
             self.boxsizes[i] = size if self.random_boxsizes else BOXSIZE
@@ -268,7 +286,7 @@ class Scale(Framework, gym.Env):
             box = self.createBox(pos_x=position, pos_y=boxsize,
                                  density=density if self.random_densities else DENSITY,
                                  boxsize=boxsize if self.random_boxsizes else BOXSIZE,
-                                 index=index)
+                                 index=index, static=True)
             self.boxes[index] = box
             self.densities[index] = density if self.random_densities else DENSITY
             self.boxsizes[index] = boxsize if self.random_boxsizes else BOXSIZE
@@ -286,7 +304,7 @@ class Scale(Framework, gym.Env):
         self.deleteBox(box)
         boxsize = box.userData  # self.fixedBoxSize
         density = box.mass / (4 * boxsize)  # DENSITY
-        movedBox = self.createBox(x, y, density, boxsize, index=index)
+        movedBox = self.createBox(x, y, density, boxsize, index=index, static=False)
         return movedBox
 
     def placeBox(self, box, pos, index=0):
@@ -317,10 +335,16 @@ class Scale(Framework, gym.Env):
             boxsizes.append(self.boxsizes[i])
         self.state = np.array(positions + [self.bar.angle, self.bar.angularVelocity] + densities + boxsizes,
                               dtype=np.float32)
+        self.internal_state = self.state.copy()
+
+        if self.raw_pixels:
+            self.screen = pygame.display.set_mode((640, 480))
+            # overwrite the state with the pixel 3d array
+            self.state = pygame.surfarray.array3d(pygame.display.get_surface())
+            self.screen = pygame.display.set_mode((1, 1))
 
         if self.normalize:
             self.normalized_state = self.rescaleState()
-        # print(self.state, self.normalized_state)
         return self.state
 
     def rescaleState(self, state=None):
@@ -328,13 +352,17 @@ class Scale(Framework, gym.Env):
         if state is None:
             state = self.state
 
-        n = self.actions + self.placed
-        positions: list[float] = rescale_movement([-20., 20.], self.state[0:n], [-1., 1.])
-        angle: float = rescale_movement([-self.maxAngle, self.maxAngle], state[2], [-1, 1])
-        angularVelocity: float = rescale_movement([-2., 2.], state[3], [-1, 1])
-        densities: list[float] = rescale_movement([0., 6.], self.state[n + 2:2 * n + 2], [0., 1.])
-        boxsizes: list[float] = rescale_movement([0.8, 1.2], self.state[2 * n + 2:3 * n + 2], [0., 1.])
-        normalized_state = np.concatenate((positions, [angle], [angularVelocity], densities, boxsizes))
+        if self.raw_pixels:
+            normalized_state = rescale_movement([0, 255], self.state, [0., 1.])
+
+        else:
+            n = self.actions + self.placed
+            positions: list[float] = rescale_movement([-20., 20.], self.state[0:n], [-1., 1.])
+            angle: float = rescale_movement([-self.maxAngle, self.maxAngle], state[2], [-1, 1])
+            angularVelocity: float = rescale_movement([-2., 2.], state[3], [-1, 1])
+            densities: list[float] = rescale_movement([0., 6.], self.state[n + 2:2 * n + 2], [0., 1.])
+            boxsizes: list[float] = rescale_movement([0.8, 1.2], self.state[2 * n + 2:3 * n + 2], [0., 1.])
+            normalized_state = np.concatenate((positions, [angle], [angularVelocity], densities, boxsizes))
         return normalized_state
 
     def performActions(self, actions):
@@ -353,56 +381,6 @@ class Scale(Framework, gym.Env):
         except:
             self.boxes[i + 1] = self.placeBox(self.boxes[i + 1], actions, index=i + 1)
         return
-
-    def performAction2Boxes(self, action):
-        """Place both boxes on the desired positions"""
-        # extract information from action
-        if self.actions == 1:
-            """try:
-                box2_pos = action[0]
-            except IndexError or TypeError:
-                box2_pos = action"""
-            box2_pos = action
-            if self.normalize:
-                box2_pos = rescale_movement([0, 1], box2_pos, [2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
-        elif self.actions == 2:
-            box1_pos = action[0]
-            box2_pos = action[1]
-            if self.normalize:
-                box1_pos = rescale_movement([0, 1], box1_pos, [-BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE])
-                box2_pos = rescale_movement([0, 1], box2_pos, [2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
-        # perform action
-        if self.actions > 1:
-            self.boxA = self.placeBox(self.boxA, box1_pos)
-        elif self.actions == 1:
-            self.boxA = self.placeBox(self.boxA, self.boxA.position[0])  # now place the box on the scale
-        self.boxB = self.placeBox(self.boxB, box2_pos)
-        return
-
-    def performAction3Boxes(self, action):
-        """Place all 3 boxes on the desired positions"""
-        # extract information from action
-        print(action)
-        if self.actions == 1:
-            box3_pos = action
-            if self.normalize:
-                box3_pos = rescale_movement([0, 1], box3_pos, [2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
-        elif self.actions == 2:
-            box1_pos = action[0]
-            box2_pos = action[1]
-            box3_pos = action[2]
-            if self.normalize:
-                box1_pos = rescale_movement([0, 1], box1_pos, [-BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE])
-                box2_pos = rescale_movement([0, 1], box2_pos, [-BARLENGTH + 2 * BOXSIZE, - 2 * BOXSIZE])
-                box3_pos = rescale_movement([0, 1], box3_pos, [2 * BOXSIZE, BARLENGTH - 2 * BOXSIZE])
-        # perform action
-        if self.actions > 1:
-            self.boxA = self.placeBox(self.boxA, box1_pos)
-            self.boxB = self.placeBox(self.boxB, box2_pos)
-        elif self.actions == 1:
-            self.boxA = self.placeBox(self.boxA, self.boxA.position[0])  # now place the box on the scale
-            self.boxB = self.placeBox(self.boxB, self.boxB.position[0])
-        self.boxC = self.placeBox(self.boxC, box3_pos)
 
     def step(self, action):
         """Actual step function called by the agent"""
@@ -429,7 +407,7 @@ class Scale(Framework, gym.Env):
                 if len(box.contacts) < 1:
                     return False
             val = len(self.bar.contacts) == self.actions + self.placed
-            return True # val
+            return True  # val
 
         def getReward():
             """Calculates the reward and adds it to the self.reward value"""
@@ -474,15 +452,16 @@ class Scale(Framework, gym.Env):
             return state, reward, True, {}
 
         # check if no movement anymore
-        if self.state[1 + self.actions + self.placed] == 0.0 and boxesOnScale():
+        if self.internal_state[1 + self.actions + self.placed] == 0.0 and boxesOnScale():
             # check if time's up
             if self.counter > WAITINGITERATIONS:
                 # self.render()
                 state = self.resetState()
                 tab = '\t'
-                print(f"Match: [{tab.join([str(box.position[0] / math.cos(self.bar.angle)) for box in self.boxes.values()])}]\t{self.bar.angle}\t{20 * math.cos(self.bar.angle)}")
+                print(
+                    f"Match: [{tab.join([str(box.position[0] / math.cos(self.bar.angle)) for box in self.boxes.values()])}]\t{self.bar.angle}\t{20 * math.cos(self.bar.angle)}")
                 reward = getReward()
-                #print(self.action)
+                # print(self.action)
                 self.reset()
                 if self.normalize:
                     return self.rescaleState(state), 20 * math.cos(self.bar.angle), True, {}
@@ -521,11 +500,8 @@ class Scale(Framework, gym.Env):
 
         # Calculate reward (Scale in balance?)
         reward = getReward()
-        # reward = self.timesteps   # old version
-        # reward == self.reward / self.timesteps
 
         # no movement and in balance --> done
-        # velocities = [self.bar.linearVelocity, self.boxA.linearVelocity, self.boxB.linearVelocity]
         done = False
 
         # placeholder for info
@@ -578,13 +554,13 @@ class Scale(Framework, gym.Env):
             pygame.display.flip()
 
     def reset(self):
-        self.deleteAllBoxes()
-
-        self.resetBoxes()
-
         # rearrange the bar to 0 degree
         self.bar.angle = 0
         self.bar.angularVelocity = 0.
+
+        self.deleteAllBoxes()
+
+        self.resetBoxes()
 
         # Reset the reward and the counters
         self.counter = 0
@@ -594,7 +570,6 @@ class Scale(Framework, gym.Env):
         # return the observation
         self.resetState()
         return self.rescaleState() if self.normalize else self.state
-        # return self.state
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -605,4 +580,4 @@ class Scale(Framework, gym.Env):
 # See the other testbed examples for more information.
 
 if __name__ == "__main__":
-    main(ScaleExperiment)
+    main(Scale)
