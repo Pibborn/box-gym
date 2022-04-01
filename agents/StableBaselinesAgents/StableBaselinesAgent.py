@@ -16,9 +16,10 @@ from agents.AgentInterface import Agent
 
 
 class StableBaselinesAgent(Agent):
-    def __init__(self, input_dim, output_dim):
+    def __init__(self, input_dim, output_dim, policy='MlpPolicy'):
         super().__init__(input_dim, output_dim)
         self.agent = None
+        self.policy = policy
         pass
 
     def train_episode(self, env, verbose=1):  # todo
@@ -41,13 +42,11 @@ class StableBaselinesAgent(Agent):
                 break
         return R
 
-    def create_model(self, train_env, policy='MlpPolicy', verbose=1, use_sde=False):
+    def create_model(self, train_env, verbose=1, use_sde=False):
         """Create the model with the given policy in the environment
 
         :type train_env: DummyVecEnv
         :param train_env: training environment
-        :type policy: str
-        :param policy: policy
         :type verbose: int
         :param verbose: print out every information
         :type use_sde: bool
@@ -82,7 +81,7 @@ class StableBaselinesAgent(Agent):
         test_success_callback = TrackingCallback(test_env, printfreq=PRINT_EVERY, num_eval_episodes=N_TRIALS,
                                                  is_test=True)
 
-        self.agent = self.create_model(train_env, policy='MlpPolicy', verbose=verbose, use_sde=sde)
+        self.agent = self.create_model(train_env, verbose=verbose, use_sde=sde)
         self.agent.learn(MAX_EPISODES, log_interval=PRINT_EVERY, eval_env=test_env, eval_freq=PRINT_EVERY,
                          callback=[wandb_callback, train_success_callback, test_success_callback],
                          eval_log_path='agents/temp')
