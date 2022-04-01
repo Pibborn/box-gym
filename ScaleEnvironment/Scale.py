@@ -72,7 +72,11 @@ class Scale(Framework, gym.Env):
 
         # Initialize all of the objects
         self.y = 6.0 + BOXSIZE
-        HEIGHT = 6  # height of the bar joint
+        BARHEIGHT = 6  # height of the bar joint
+
+        # screen / observation space measurements
+        self.height = 480
+        self.width = 640
 
         self.counter = 0
         self.timesteps = 0
@@ -125,7 +129,7 @@ class Scale(Framework, gym.Env):
             self.observation_space = spaces.Dict(spaces=observation_dict)  # convert to Spaces Dict
 
         else:
-            self.observation_space = spaces.Box(low=0, high=255, shape=(640, 480, 3), dtype=np.uint8)
+            self.observation_space = spaces.Box(low=0, high=255, shape=(self.width, self.height, 3), dtype=np.uint8)
 
         """self.observation_space = spaces.Box(low=np.array([-20, -20, -0.390258252620697, -2., 4., 4.]), high=np.array([20, 20, 0.390258252620697, 2., 6., 6.]),
                                            shape=(6,), dtype=np.float32)"""
@@ -137,7 +141,7 @@ class Scale(Framework, gym.Env):
 
         self.maxAngle = 0.390258252620697  # self.getMaxAngle() # todo: fix getMaxAngle function
 
-        topCoordinate = Vec2(0, HEIGHT)
+        topCoordinate = Vec2(0, BARHEIGHT)
         self.triangle = self.world.CreateStaticBody(
             position=(0, 0),
             fixtures=fixtureDef(shape=polygonShape(vertices=[(-1, 0), (1, 0), topCoordinate]), density=100)
@@ -151,6 +155,7 @@ class Scale(Framework, gym.Env):
         self.joint = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=self.triangle, anchor=topCoordinate)
 
         self.boxes = {}
+        self.boxsizes = {}
         # self.resetBoxes()
         self.reset()
 
@@ -168,6 +173,43 @@ class Scale(Framework, gym.Env):
         """
         return Vec2((x + self.viewOffset.x) / self.viewZoom,
                     ((self.screenSize.y - y + self.viewOffset.y) / self.viewZoom))
+
+    def convertDensityToRGB(self, density, low=4., high=6.):
+        """
+        Gets a value for the density of one box and returns the corresponding color
+        :param density: the given
+        :param low: the minimum value for the density
+        :param high: the maximum value for the density
+        :return: a RGB color
+        """
+        if not (low <= density <= high):
+            raise AssertionError(f"Density {density} not in allowed range [{low},{high}]")
+
+        # first normalize the density
+        density = int(rescale_movement([low, high], density, [0., 256**3 - 1]))
+        #print(density)
+
+        red = (density >> 16) & 255
+        green = (density >> 8) & 255
+        blue = density & 255
+
+        return red, green, blue
+
+    def convertRGBToDensity(self, RGB, low=4., high=6.):
+        """
+        Gets a RGB value of an box and returns the corresponding density of the box
+        :param RGB: (red, green, blue) values
+        :param low: the minimum value for the density
+        :param high: the maximum value for the density
+        :return: density value
+        """
+        red, green, blue = RGB[0], RGB[1], RGB[2]
+        density = (1/256**3) * (256**2 + red + 256 * green + blue)
+
+        # rescale the density
+        density = rescale_movement([0., 256**3 - 1], density, [low, high])
+
+        return density
 
     def getMaxAngle(self):
         """
@@ -199,6 +241,7 @@ class Scale(Framework, gym.Env):
                 position=(pos_x, pos_y),
                 fixtures=fixtureDef(shape=polygonShape(box=(boxsize, boxsize)),
                                     density=density, friction=1.),
+                # userData=(255,255,255)#self.convertDensityToRGB(density=density)
                 userData=boxsize,  # save this because you somehow cannot access fixture data later
             )
         else:
@@ -206,11 +249,13 @@ class Scale(Framework, gym.Env):
                 position=(pos_x, pos_y),
                 fixtures=fixtureDef(shape=polygonShape(box=(boxsize, boxsize)),
                                     density=density, friction=1.),
+                # userData=(255,255,255)#self.convertDensityToRGB(density=density)
                 userData=boxsize,  # save this because you somehow cannot access fixture data later
             )
         if index == 0:
             index = len(self.boxes.values()) + 1
         self.boxes[index] = newBox
+        self.boxsizes[index] = boxsize
         return newBox
 
     def deleteBox(self, box):
@@ -230,6 +275,7 @@ class Scale(Framework, gym.Env):
                 self.world.DestroyBody(box)
             except Exception as e:
                 print(e)
+        self.boxsizes = {}
         self.boxes = {}
         return
 
@@ -262,6 +308,7 @@ class Scale(Framework, gym.Env):
 
         # save values of densities and box sizes and place the boxes
         self.boxes = {}
+        self.boxsizes = {}
         self.densities = {}
         self.boxsizes = {}
         self.positions = {}
@@ -286,7 +333,7 @@ class Scale(Framework, gym.Env):
             box = self.createBox(pos_x=position, pos_y=boxsize,
                                  density=density if self.random_densities else DENSITY,
                                  boxsize=boxsize if self.random_boxsizes else BOXSIZE,
-                                 index=index, static=True)
+                                 index=index, static=False)     # todo: fix problem with static objects
             self.boxes[index] = box
             self.densities[index] = density if self.random_densities else DENSITY
             self.boxsizes[index] = boxsize if self.random_boxsizes else BOXSIZE
@@ -302,8 +349,9 @@ class Scale(Framework, gym.Env):
     def moveBoxTo(self, box, x, y, index=0):
         """Place a box at a specific position on the field"""
         self.deleteBox(box)
-        boxsize = box.userData  # self.fixedBoxSize
-        density = box.mass / (4 * boxsize)  # DENSITY
+        # boxsize = box.userData  # self.fixedBoxSize
+        boxsize = self.boxsizes[index]
+        density = self.densities[index]  # DENSITY
         movedBox = self.createBox(x, y, density, boxsize, index=index, static=False)
         return movedBox
 
@@ -338,10 +386,13 @@ class Scale(Framework, gym.Env):
         self.internal_state = self.state.copy()
 
         if self.raw_pixels:
-            self.screen = pygame.display.set_mode((640, 480))
+            """self.screen = pygame.display.set_mode((self.width, self.height))
             # overwrite the state with the pixel 3d array
             self.state = pygame.surfarray.array3d(pygame.display.get_surface())
-            self.screen = pygame.display.set_mode((1, 1))
+            self.screen = pygame.display.set_mode((1, 1))"""
+
+            # self.state = self.render("state_pixels")
+            self.state = self._create_image_array(self.screen, (self.width, self.height))
 
         if self.normalize:
             self.normalized_state = self.rescaleState()
@@ -442,10 +493,9 @@ class Scale(Framework, gym.Env):
         if (abs(self.bar.angle) > ANGLE_TRESHOLD * self.maxAngle
                 or self.timesteps > MAXITERATIONS):
             state = self.resetState().copy()
-            # reward = self.reward / self.timesteps
-            # reward = self.timesteps
             reward = getReward()
             self.render()
+            # self.render(mode="state_pixels" if self.raw_pixels else "human")
             self.reset()
             if self.normalize:
                 return self.rescaleState(state), reward, True, {}
@@ -508,6 +558,7 @@ class Scale(Framework, gym.Env):
         info = {}
 
         self.render()
+        # self.render(mode="state_pixels" if self.raw_pixels else "human")
 
         if self.normalize:
             return self.rescaleState(), reward, done, info
@@ -518,7 +569,7 @@ class Scale(Framework, gym.Env):
         sys.exit()
 
     def render(self, mode="human"):
-        from gym.envs.classic_control import rendering
+        assert mode in ["human", "rgb_array", "state_pixels"], f"Wrong render mode passed, {mode} is invalid."
         renderer = self.renderer
 
         self.screen.fill((0, 0, 0))
@@ -544,14 +595,27 @@ class Scale(Framework, gym.Env):
         # Reset the collision points
         self.points = []
 
-        if renderer is not None:
-            renderer.StartDraw()
+        if mode == "rgb_array":
+            return self._create_image_array(self.screen, (self.width, self.height))
 
-        self.world.DrawDebugData()
+        elif mode == "state_pixels":
+            return self._create_image_array(self.screen, (self.width, self.height))
 
-        if renderer:
-            renderer.EndDraw()
-            pygame.display.flip()
+        elif mode == "human":
+            if renderer is not None:
+                renderer.StartDraw()
+
+            self.world.DrawDebugData()
+
+            if renderer:
+                renderer.EndDraw()
+                pygame.display.flip()
+
+            return True  # ?
+
+    def _create_image_array(self, screen, size):
+        scaled_screen = pygame.transform.smoothscale(screen, size)
+        return np.array(pygame.surfarray.pixels3d(scaled_screen))
 
     def reset(self):
         # rearrange the bar to 0 degree
@@ -569,6 +633,7 @@ class Scale(Framework, gym.Env):
 
         # return the observation
         self.resetState()
+
         return self.rescaleState() if self.normalize else self.state
 
     def seed(self, seed=None):
