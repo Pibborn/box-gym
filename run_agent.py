@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 from environments.GymEnv import GymEnv
 from ScaleEnvironment.Scale import Scale
 from ScaleEnvironment.ScaleExperiment import ScaleExperiment
+from ScaleEnvironment.ScaleDraw import ScaleDraw
 from agents.StableBaselinesAgents.SACAgent import SACAgent
 from stable_baselines3.sac import SAC
 from stable_baselines3.a2c import A2C
@@ -49,6 +50,13 @@ def create_envs(env_str, seed=42, do_render=True, random_densities=False, random
                                     random_boxsizes=random_boxsizes, actions=1, normalize=normalize, boxes=2)
         test_env = ScaleExperiment(rendering=do_render, random_densities=random_densities,
                                    random_boxsizes=random_boxsizes, actions=1, normalize=normalize, boxes=2)
+    elif env_str == 'scale_draw':
+        train_env = ScaleDraw(rendering=do_render, random_densities=random_densities,
+                          random_boxsizes=random_boxsizes, normalize=normalize,
+                          placed=placed, actions=actions, sides=sides, raw_pixels=raw_pixels)
+        test_env = ScaleDraw(rendering=do_render, random_densities=random_densities,
+                         random_boxsizes=random_boxsizes, normalize=normalize,
+                         placed=placed, actions=actions, sides=sides, raw_pixels=raw_pixels)
     else:
         train_env = GymEnv(env_str)
         train_env = train_env.create()
@@ -156,11 +164,11 @@ if __name__ == '__main__':
         input_dim, output_dim = get_env_dims(train_env)
         # agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
         if args.agent == 'sac':
-            agent = SACAgent(input_dim, output_dim, lr=args.lr)
+            agent = SACAgent(input_dim, output_dim, lr=args.lr, policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
             if args.location == "":
                 args.location = "SAC_Model"
         elif args.agent == 'a2c':
-            agent = A2CAgent(input_dim, output_dim, lr=args.lr)
+            agent = A2CAgent(input_dim, output_dim, lr=args.lr, policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
             if args.location == "":
                 args.location = "A2C_Model"
         else:
@@ -213,7 +221,6 @@ if __name__ == '__main__':
         print(f"Loaded agent from Model {args.agent} from location {args.location}")
 
         # use the loaded agent
-        print(train_env.action_space, test_env.action_space)
         mean_test_rewards = agent.test_loop(test_env=test_env, config=args, verbose=1)
         # mean_test_rewards = agent.evaluate_model(test_env=test_env, config=args)
     end_time = time.time()
