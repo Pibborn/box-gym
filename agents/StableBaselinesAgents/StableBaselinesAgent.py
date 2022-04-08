@@ -19,6 +19,7 @@ class StableBaselinesAgent(Agent):
     def __init__(self, input_dim, output_dim, policy='MlpPolicy'):
         super().__init__(input_dim, output_dim)
         self.agent = None
+        self.name = ''
         self.policy = policy
         pass
 
@@ -26,7 +27,7 @@ class StableBaselinesAgent(Agent):
         pass
 
     def evaluate(self, env: gym.Env):
-        state = env.reset() #torch.tensor(env.reset())
+        state = env.reset()  # torch.tensor(env.reset())
         R = 0  # return (sum of rewards)
         t = 0  # time step
         done = False
@@ -68,9 +69,9 @@ class StableBaselinesAgent(Agent):
             test_env.observation_space = self.convert_observation_space(test_env.observation_space)
 
         train_env = DummyVecEnv([lambda: train_env])
-        test_env = DummyVecEnv([lambda: test_env])
-        #train_env = VecNormalize(train_env, norm_obs=True, norm_reward=config.reward_norm)
-        #test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
+        #test_env = DummyVecEnv([lambda: test_env])
+        # train_env = VecNormalize(train_env, norm_obs=True, norm_reward=config.reward_norm)
+        # test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
         # train_env = VecVideoRecorder(train_env, 'videos', record_video_trigger=lambda x: x % PRINT_EVERY == 0, video_length=200) # todo: Video
 
         wandb_callback = WandbCallback(gradient_save_freq=config.printevery,
@@ -90,7 +91,7 @@ class StableBaselinesAgent(Agent):
         """self.agent.save("SAC_Model_test")   # location is just a placeholder for now, could be replaced with extra parameter
         del self.agent
         self.agent = SAC.load("SAC_Model_test")"""
-        self.test_loop(test_env, config=config, verbose=1) # todo: doesn't work somehow
+        self.test_loop(test_env, config=config, verbose=1)  # todo: doesn't work somehow
         self.evaluate_model(test_env=test_env, config=config)
 
     def save_agent(self, location):
@@ -133,7 +134,13 @@ class StableBaselinesAgent(Agent):
             test_env.observation_space = self.convert_observation_space(test_env.observation_space)
 
         test_env = DummyVecEnv([lambda: test_env])
-        test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
+        # test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
+        """video_length = 480 # todo: turn on video recording
+        test_env = VecVideoRecorder(test_env, "videos/",
+                                    record_video_trigger=lambda x: x == 0, video_length=video_length,
+                                    name_prefix=f"{self.name}-agent")
+
+        test_env.reset()"""
 
         for episode in range(1, MAX_EPISODES + 1):
             test_reward = self.evaluate(env=test_env)
@@ -155,4 +162,5 @@ class StableBaselinesAgent(Agent):
             f"Success rate of test episodes: {test_matches}/{MAX_EPISODES}={(test_matches / MAX_EPISODES * 100):,.2f}%")
         test_success_rate = test_matches / MAX_EPISODES
         wandb.log({'test_success_rate': test_success_rate})
+        test_env.close()
         return test_rewards

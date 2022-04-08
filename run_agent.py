@@ -4,6 +4,9 @@ import matplotlib
 
 from agents.OtherAgents.SRAgent import SRAgent
 from agents.StableBaselinesAgents.A2CAgent import A2CAgent
+from agents.StableBaselinesAgents.CustomAgent import CustomAgent
+from agents.StableBaselinesAgents.SACAgent import SACAgent
+from agents.StableBaselinesAgents.HERAgent import HERAgent
 
 matplotlib.rcParams['backend'] = 'WebAgg'
 try:
@@ -18,7 +21,6 @@ from environments.GymEnv import GymEnv
 from ScaleEnvironment.Scale import Scale
 from ScaleEnvironment.ScaleExperiment import ScaleExperiment
 from ScaleEnvironment.ScaleDraw import ScaleDraw
-from agents.StableBaselinesAgents.SACAgent import SACAgent
 from stable_baselines3.sac import SAC
 from stable_baselines3.a2c import A2C
 from gym.spaces import Dict
@@ -31,8 +33,11 @@ from rich.traceback import install
 install(show_locals=True)
 
 
-def create_envs(env_str, seed=42, do_render=True, random_densities=False, random_boxsizes=False, normalize=False,
+def create_envs(env_str='', seed=42, do_render=True, random_densities=False, random_boxsizes=False, normalize=False,
                 placed=1, actions=1, sides=2, raw_pixels=False):
+    allowed_strings = ['scale', 'scale_exp', 'scale_single', 'scale_draw', '']
+    if env_str not in allowed_strings:
+        raise AssertionError(f"Environment name {env_str} not in allowed list {allowed_strings}")
     if env_str == 'scale':
         train_env = Scale(rendering=do_render, random_densities=random_densities,
                           random_boxsizes=random_boxsizes, normalize=normalize,
@@ -163,14 +168,22 @@ if __name__ == '__main__':
                                           sides=args.sides, raw_pixels=args.raw_pixels)
         input_dim, output_dim = get_env_dims(train_env)
         # agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
-        if args.agent == 'sac':
+        if args.agent.lower() == 'sac':
             agent = SACAgent(input_dim, output_dim, lr=args.lr, policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
             if args.location == "":
                 args.location = "SAC_Model"
-        elif args.agent == 'a2c':
+        elif args.agent.lower() == 'a2c':
             agent = A2CAgent(input_dim, output_dim, lr=args.lr, policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
             if args.location == "":
                 args.location = "A2C_Model"
+        elif args.agent.lower() == 'her': # todo: delete
+            agent = HERAgent(input_dim, output_dim, lr=args.lr,) # policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
+            if args.location == "":
+                args.location = "HER_Model"
+        elif args.agent.lower() == 'custom':
+            agent = CustomAgent(input_dim, output_dim, lr=args.lr,) # policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
+            if args.location == "":
+                args.location = "Custom_Model"
         else:
             raise ValueError('Agent string {} not recognized'.format(args.agent))
         args.location = f"savedagents/models/{args.location}"
@@ -194,18 +207,20 @@ if __name__ == '__main__':
         if args.agent == 'sac':
             agent = SACAgent(input_dim, output_dim, lr=args.lr)
             test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
-            if args.location == "":
-                args.location = 'SAC_Model'
-            args.location = f"savedagents/models/{args.location}"
-            agent.agent = SAC.load(args.location, env=test_env)
+            args.location = f"savedagents/models/{args.location if args != '' else 'SAC_Model'}"
+            agent.agent = SAC.load(args.location if args != '' else 'SAC_Model', env=test_env)
             # agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")
         elif args.agent == 'a2c':
             agent = A2CAgent(input_dim, output_dim, lr=args.lr)
             test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
-            if args.location == "":
-                args.location = 'A2C_Model'
-            args.location = f"savedagents/models/{args.location}"
-            agent.agent = A2C.load(args.location, env=test_env)
+            args.location = f"savedagents/models/{args.location if args != '' else 'A2C_Model'}"
+            agent.agent = A2C.load(args.location if args != '' else 'A2C_Model', env=test_env)
+            # agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")
+        elif args.agent == 'custom':
+            agent = CustomAgent(input_dim, output_dim, lr=args.lr)
+            test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
+            args.location = f"savedagents/models/{args.location if args != '' else 'Custom_Model'}"
+            agent.agent = SAC.load(args.location if args != '' else 'Custom_Model', env=test_env)
             # agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")
         elif args.agent == 'sr':
             formula = "(x1 * (x2 * -0.99871546) * inv(x3))"

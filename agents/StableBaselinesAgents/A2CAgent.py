@@ -7,6 +7,7 @@ class A2CAgent(StableBaselinesAgent):
     def __init__(self, input_dim, output_dim, lr=1e-4, policy='MlpPolicy'):
         super().__init__(input_dim, output_dim, policy=policy)
         self.agent = None
+        self.name = 'a2c'
         self.lr = lr
 
     def create_model(self, train_env, verbose=1, use_sde=False, lr=1e-4):

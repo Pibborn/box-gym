@@ -129,6 +129,10 @@ class ScaleDraw(gym.Env):
         # screen / observation space measurements
         self.height = 480
         self.width = 640
+        factor = 1
+        self.height //= factor
+        self.width //= factor
+
 
         # Pygame setup
         if rendering:
@@ -137,7 +141,7 @@ class ScaleDraw(gym.Env):
             self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), 0, 32)
             pygame.display.set_caption('Box Gym')
         else:
-            self.screen = pygame.display.set_mode((1,1))
+            self.screen = pygame.display.set_mode((1, 1))
         self.clock = pygame.time.Clock()
 
         # Box2d world setup
@@ -164,14 +168,14 @@ class ScaleDraw(gym.Env):
         # action space determination
         limit1, limit2 = BARLENGTH - 2 * BOXSIZE, 2 * BOXSIZE
         if not self.normalize:
-            self.action_space = gym.spaces.Box(
+            self.action_space = Box(
                 low=np.array([-limit1 if not self.sides == 1 else limit2 for _ in range(actions)]),
                 high=np.array([limit1 for _ in range(actions)]),
                 shape=(self.actions,), dtype=np.float32)
         else:
-            self.action_space = gym.spaces.Box(low=np.array([-1 if self.sides == 2 else 0 for _ in range(actions)]),
-                                               high=np.array([1 for _ in range(actions)]),
-                                               shape=(1,), dtype=np.float32)
+            self.action_space = Box(low=np.array([-1 if self.sides == 2 else 0 for _ in range(actions)]),
+                                    high=np.array([1 for _ in range(actions)]),
+                                    shape=(self.actions,), dtype=np.float32)
 
         # observation space
         if not raw_pixels:
@@ -195,13 +199,18 @@ class ScaleDraw(gym.Env):
             self.observation_space = spaces.Dict(spaces=observation_dict)  # convert to Spaces Dict
 
         else:
-            self.observation_space = spaces.Box(low=0, high=255, shape=(self.width, self.height, 3), dtype=np.uint8)
+            self.observation_space = spaces.Box(low=0, high=1. if self.normalize else 255,
+                                                shape=(self.width, self.height, 3),
+                                                dtype=np.float32 if self.normalize else np.uint8)
+            """observation_dict = {}
+            for i in range(self.width):
+                for j in range(self.height):
+                    observation_dict[(i, j)] = Box(low=np.array([0 for _ in range(3)]),
+                                    high=np.array([1 if self.normalize else 255 for _ in range(3)]),
+                                    shape=(3,), dtype=np.float32)
+            self.observation_space = spaces.Dict(observation_dict)  # convert to Spaces Dict"""
 
         # setting up the objects on the screen
-        """self.ground = self.world.CreateStaticBody(
-            shapes=[Box2D.b2.edgeShape(vertices=[(-40, 0), (40, 0)])]
-        )"""
-
         self.ground = self.world.CreateStaticBody(
             position=(0, 0),
             shapes=polygonShape(box=(40, 1)),
@@ -229,7 +238,8 @@ class ScaleDraw(gym.Env):
         # reset every dict/array and all the boxes on the screen
         self.boxes = {}
         self.boxsizes = {}
-        # self.resetBoxes()
+        self.densities = {}
+        self.positions = {}
         self.reset()
 
         # state calculation
@@ -310,7 +320,7 @@ class ScaleDraw(gym.Env):
 
         return density
 
-    def convertDensityToGrayscale(self, density, low=4., high=6.):
+    def convertDensityToGrayscale(self, density, low=4., high=6.):  # todo: fix
         """
         Gets a value for the density of one box and returns the corresponding grayscale value
 
@@ -323,12 +333,11 @@ class ScaleDraw(gym.Env):
         :return: a RGB color
         :rtype: (int, int, int)
         """
-
         colormap = cm.gray
         norm = Normalize(vmin=0, vmax=10)
         red, green, blue, brightness = colormap(norm(density))
 
-        return red, green, blue#, brightness
+        return red, green, blue  # , brightness
 
     def convertGrayscaleToDensity(self, RGB, low=4., high=6.):  # todo
         """
@@ -380,7 +389,7 @@ class ScaleDraw(gym.Env):
         :param index: index of the box for the dictionaries, if not given: calculated inside of the function
         :return: new (dynamic) box
         """
-        try:  # todo: fix
+        try:
             pos_x = float(pos_x[0])
             pos_y = float(pos_y[0])
         except:
@@ -435,6 +444,7 @@ class ScaleDraw(gym.Env):
         :return: self.boxes, a dictionary with every box as value and its index as key
         :rtype: Dict[int, Box2D.b2Body]
         """
+
         def overlapping(boxes):
             """
             Help function to determine whether two boxes would overlap when trying to place them to their
@@ -531,7 +541,6 @@ class ScaleDraw(gym.Env):
         """
         self.deleteBox(box)
         boxsize = self.boxsizes[index]
-        #density = box.mass / (4 * boxsize)  # DENSITY
         density = self.densities[index]
         movedBox = self.createBox(x, y, density, boxsize, index=index)
         return movedBox
@@ -596,7 +605,7 @@ class ScaleDraw(gym.Env):
             self.screen = pygame.display.set_mode((1, 1))"""
 
             # self.state = self.render("state_pixels")
-            self.state = self._create_image_array(self.screen, (self.width, self.height))
+            self.state = self.render(mode='rgb_array')  # (self.screen, (self.width, self.height))
 
         if self.normalize:
             self.normalized_state = self.rescaleState()
@@ -659,10 +668,12 @@ class ScaleDraw(gym.Env):
         :rtype: tuple[np.ndarray, float, bool, dict]
         """
         # catch special case that one action is passed as a single input instead of an array
-        if type(action) == float:
+        if type(action) in {float, np.float32, np.float64}:
             action = np.array([action])
-        if len(np.array(action)) != self.actions:
-            raise AssertionError(f"Number of values in array {len(action)} does not match number of actions {self.actions}!")
+
+        if len(np.array([action])) != self.actions:
+            raise AssertionError(
+                f"Number of values in array {len(action)} does not match number of actions {self.actions}!")
 
         timesteps = 120
         self.action = action
@@ -687,14 +698,13 @@ class ScaleDraw(gym.Env):
         :rtype: tuple[np.ndarray, float, bool, dict]
         """
 
-        def boxesOnScale(): # todo: need to change this function for multiple boxes (probably)
+        def boxesOnScale():  # todo: need to change this function for multiple boxes (probably)
             """
             Utility function to check if both boxes are still on the scale
 
             :return: True, if all(!) boxes are on the scale, else: False
             :rtype: bool
             """
-            boxes = np.array(list(self.boxes.values()))
             for box in list(self.boxes.values()):
                 if len(box.contacts) < 1:
                     return False
@@ -825,6 +835,8 @@ class ScaleDraw(gym.Env):
         :return: nothing if mode is human, if mode is "state_pixels", we return the array of the screen
         :rtype: np.array
         """
+        assert mode in ["human", "rgb_array", "state_pixels"], f"Wrong render mode passed, {mode} is invalid."
+
         # Draw Functions
         def my_draw_polygon(polygon, body, fixture):
             vertices = [(body.transform * v) * PPM for v in polygon.vertices]
@@ -832,9 +844,11 @@ class ScaleDraw(gym.Env):
             if body.userData is not None:
                 pygame.draw.polygon(self.screen, body.userData, vertices)
             else:
-                #pygame.draw.polygon(self.screen, self.convertDensityToRGB(density=fixture.density), vertices)
+                # pygame.draw.polygon(self.screen, self.convertDensityToRGB(density=fixture.density), vertices)
                 # here: don't use the red color channel, only use green and blue
-                pygame.draw.polygon(self.screen, self.convertDensityToRGB(density=fixture.density, channels=[False, True, True]), vertices)
+                pygame.draw.polygon(self.screen,
+                                    self.convertDensityToRGB(density=fixture.density, channels=[False, True, True]),
+                                    vertices)
 
             """if body.userData is not None:
                 pygame.draw.polygon(self.screen, body.userData, vertices)
@@ -860,46 +874,6 @@ class ScaleDraw(gym.Env):
 
         edgeShape.draw = my_draw_edge()
 
-        if self.rendering:
-            self.screen.fill((0, 0, 0, 0))
-            # Draw the world
-            for body in self.world.bodies:
-                for fixture in body.fixtures:
-                    fixture.shape.draw(body, fixture)
-
-            # Make Box2D simulate the physics of our world for one step.
-            # self.world.Step(TIME_STEP, 10, 10)
-
-            pygame.display.flip()
-        # self.clock.tick(TARGET_FPS)
-
-    def render2(self, mode="human"):
-        assert mode in ["human", "rgb_array", "state_pixels"], f"Wrong render mode passed, {mode} is invalid."
-        renderer = self.renderer
-
-        self.screen.fill((0, 0, 0))
-
-        # Set the flags based on what the settings show
-        if renderer:
-            # convertVertices is only applicable when using b2DrawExtended.  It
-            # indicates that the C code should transform box2d coords to screen
-            # coordinates.
-            is_extended = isinstance(renderer, b2DrawExtended)
-            renderer.flags = dict(drawShapes=True,
-                                  drawJoints=False,  # True
-                                  drawAABBs=False,
-                                  drawPairs=False,
-                                  drawCOMs=False,
-                                  convertVertices=is_extended,
-                                  )
-
-        self.world.warmStarting = True
-        self.world.continuousPhysics = True
-        self.world.subStepping = False
-
-        # Reset the collision points
-        self.points = []
-
         if mode == "rgb_array":
             return self._create_image_array(self.screen, (self.width, self.height))
 
@@ -907,18 +881,22 @@ class ScaleDraw(gym.Env):
             return self._create_image_array(self.screen, (self.width, self.height))
 
         elif mode == "human":
-            if renderer is not None:
-                renderer.StartDraw()
+            if self.rendering:
+                try:
+                    self.screen.fill((0, 0, 0, 0))
+                except:
+                    return
+                # Draw the world
+                for body in self.world.bodies:
+                    for fixture in body.fixtures:
+                        fixture.shape.draw(body, fixture)
 
-            self.world.DrawDebugData()
+                # Make Box2D simulate the physics of our world for one step.
+                # self.world.Step(TIME_STEP, 10, 10)
 
-            if renderer:
-                renderer.EndDraw()
-                # display_surface = pygame.display.get_surface()
-                # display_surface.blit(pygame.transform.flip(display_surface, False, True), dest=(0, 0))
                 pygame.display.flip()
-
-            return True  # ?
+            # self.clock.tick(TARGET_FPS)
+            return None
 
     def _create_image_array(self, screen, size):
         """

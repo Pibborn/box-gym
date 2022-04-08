@@ -1,8 +1,17 @@
-from stable_baselines3 import SAC, HerReplayBuffer
+import gym
 
+from stable_baselines.common.policies import FeedForwardPolicy
+from stable_baselines3 import A2C, SAC, HerReplayBuffer
 from agents.StableBaselinesAgents.StableBaselinesAgent import StableBaselinesAgent
 
-class SACAgent(StableBaselinesAgent):
+# Custom MLP policy of three layers of size 128 each
+class CustomPolicy(FeedForwardPolicy):
+    def __init__(self, *args, **kwargs):
+        super(CustomPolicy, self).__init__(*args, **kwargs,
+                                           net_arch=[dict(pi=[128, 128, 128], vf=[128, 128, 128])],
+                                           feature_extraction="mlp")
+
+class CustomAgent(StableBaselinesAgent):
     def __init__(self, input_dim, output_dim, lr=1e-4, policy='MlpPolicy'):
         super().__init__(input_dim, output_dim, policy)
         self.agent = None
@@ -17,35 +26,8 @@ class SACAgent(StableBaselinesAgent):
                                                      target_entropy='auto', use_sde=False, sde_sample_freq=- 1, use_sde_at_warmup=False,
                                                      tensorboard_log=None, create_eval_env=False, policy_kwargs=None, verbose=0,
                                                      seed=None, device='auto', _init_setup_model=True)"""
-
-        # Available strategies (cf paper): future, final, episode
-        goal_selection_strategy = 'future'  # equivalent to GoalSelectionStrategy.FUTURE
-
-        """# If True the HER transitions will get sampled online
-        online_sampling = True
-        # Time limit for the episodes
-        max_episode_length = 120
-
-        # Initialize the model
-        self.agent = SAC(
-            "MultiInputPolicy",
-            train_env,
-            replay_buffer_class=HerReplayBuffer,
-            # Parameters for HER
-            replay_buffer_kwargs=dict(
-                n_sampled_goal=4,
-                goal_selection_strategy=goal_selection_strategy,
-                online_sampling=online_sampling,
-                max_episode_length=max_episode_length,
-            ),
-            verbose=1,
-        )"""
-
-        self.agent = SAC(policy=self.policy, env=train_env, verbose=verbose, use_sde=use_sde,
+        self.agent = SAC(policy=CustomPolicy, env=train_env, verbose=verbose, use_sde=use_sde,
                          tensorboard_log='results/temp', learning_rate=self.lr,
-                         # play with the following parameters if you use pictures as image
-                         # buffer_size=800 if self.policy == 'CnnPolicy' else 1000000,
-                         # batch_size=128 if self.policy == 'CnnPolicy' else 256,
                          )
         return self.agent
 
@@ -56,8 +38,3 @@ class SACAgent(StableBaselinesAgent):
     def load_agent(self, location):
         self.agent = SAC.load(location)
         return self.agent
-
-
-
-if __name__ == '__main__':
-    agent = SACAgent(10, 10)
