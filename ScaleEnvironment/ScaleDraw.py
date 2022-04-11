@@ -62,7 +62,7 @@ barColor = (255, 0, 0)
 # --- constants ---
 BOXSIZE = 1.0
 DENSITY = 5.0
-BARLENGTH = 15  # 18
+BARLENGTH = 15
 
 FAULTTOLERANCE = 0.001  # for the angle of the bar
 ANGLE_TRESHOLD = 0.98
@@ -89,7 +89,6 @@ def rescale_movement(original_interval, value, to_interval=(-BARLENGTH, +BARLENG
     return c + ((d - c) / (b - a)) * (value - a)
 
 
-# class Scale(Framework, gym.Env):
 class ScaleDraw(gym.Env):
     name = "Scale"  # Name of the class to display
 
@@ -115,24 +114,22 @@ class ScaleDraw(gym.Env):
         :param raw_pixels: if True: the agent gets an pixel array as input, else: agent gets the observation space as an accumulation of values (positions, densities, boxsizes, bar angle, velocitiy of the bar, ...)
         :type raw_pixels: bool
         """
-        # super(Scale, self).__init__(rendering)
 
         self.np_random = None
         self.seed()
 
         self.num_envs = 1  # for stable-baseline3
 
-        # Initialize all of the objects
+        # Initialize all the objects
         self.y = 6.0 + BOXSIZE
         BARHEIGHT = 6  # height of the bar joint
 
         # screen / observation space measurements
-        self.height = 480
-        self.width = 640
+        self.height = SCREEN_HEIGHT  # 480
+        self.width = SCREEN_WIDTH  # 640
         factor = 1
         self.height //= factor
         self.width //= factor
-
 
         # Pygame setup
         if rendering:
@@ -202,13 +199,6 @@ class ScaleDraw(gym.Env):
             self.observation_space = spaces.Box(low=0, high=1. if self.normalize else 255,
                                                 shape=(self.width, self.height, 3),
                                                 dtype=np.float32 if self.normalize else np.uint8)
-            """observation_dict = {}
-            for i in range(self.width):
-                for j in range(self.height):
-                    observation_dict[(i, j)] = Box(low=np.array([0 for _ in range(3)]),
-                                    high=np.array([1 if self.normalize else 255 for _ in range(3)]),
-                                    shape=(3,), dtype=np.float32)
-            self.observation_space = spaces.Dict(observation_dict)  # convert to Spaces Dict"""
 
         # setting up the objects on the screen
         self.ground = self.world.CreateStaticBody(
@@ -334,7 +324,7 @@ class ScaleDraw(gym.Env):
         :rtype: (int, int, int)
         """
         colormap = cm.gray
-        norm = Normalize(vmin=0, vmax=10)
+        norm = Normalize(vmin=low, vmax=high)
         red, green, blue, brightness = colormap(norm(density))
 
         return red, green, blue  # , brightness
@@ -352,12 +342,7 @@ class ScaleDraw(gym.Env):
         :return: density value
         :rtype: float
         """
-        red, green, blue = RGB[0], RGB[1], RGB[2]
-        density = (1 / 256 ** 3) * (256 ** 2 + red + 256 * green + blue)
-
-        # rescale the density
-        density = rescale_movement([0., 256 ** 3 - 1], density, [low, high])
-
+        density = None
         return density
 
     def getMaxAngle(self):  # todo: fix
@@ -677,6 +662,7 @@ class ScaleDraw(gym.Env):
 
         timesteps = 120
         self.action = action
+        done = False
         for _ in range(timesteps):
             self.old_state = self.state
             self.state, reward, done, info = self.internal_step(action)
@@ -847,7 +833,7 @@ class ScaleDraw(gym.Env):
                 # pygame.draw.polygon(self.screen, self.convertDensityToRGB(density=fixture.density), vertices)
                 # here: don't use the red color channel, only use green and blue
                 pygame.draw.polygon(self.screen,
-                                    self.convertDensityToRGB(density=fixture.density, channels=[False, True, True]),
+                                    self.convertDensityToRGB(density=fixture.density, channels=[False, True, False]),
                                     vertices)
 
             """if body.userData is not None:

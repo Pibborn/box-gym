@@ -69,7 +69,7 @@ class StableBaselinesAgent(Agent):
             test_env.observation_space = self.convert_observation_space(test_env.observation_space)
 
         train_env = DummyVecEnv([lambda: train_env])
-        #test_env = DummyVecEnv([lambda: test_env])
+        test_env = DummyVecEnv([lambda: test_env])
         # train_env = VecNormalize(train_env, norm_obs=True, norm_reward=config.reward_norm)
         # test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
         # train_env = VecVideoRecorder(train_env, 'videos', record_video_trigger=lambda x: x % PRINT_EVERY == 0, video_length=200) # todo: Video
@@ -133,7 +133,9 @@ class StableBaselinesAgent(Agent):
         if type(test_env.observation_space) != gym.spaces.box.Box and not config.raw_pixels:  # if not already converted to Box
             test_env.observation_space = self.convert_observation_space(test_env.observation_space)
 
-        test_env = DummyVecEnv([lambda: test_env])
+        # convert type to DummyVecEnv if not already done
+        if type(test_env) != DummyVecEnv and type(test_env) != VecNormalize:
+            test_env = DummyVecEnv([lambda: test_env])
         # test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
         """video_length = 480 # todo: turn on video recording
         test_env = VecVideoRecorder(test_env, "videos/",
