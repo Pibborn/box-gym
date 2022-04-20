@@ -717,16 +717,10 @@ class ScaleDraw(gym.Env):
             return reward
 
         # Don't do anything if the setting's Hz are <= 0
-        hz = 60.
         velocityIterations = 8
         positionIterations = 3
         velocityIterations *= 1
         positionIterations *= 1
-
-        if hz > 0.0:
-            timeStep = 1.0 / hz
-        else:
-            timeStep = 0.0
 
         self.counter += 1
         self.timesteps += 1
@@ -764,7 +758,7 @@ class ScaleDraw(gym.Env):
 
         # catch special case that no action was executed
         if action is None:
-            self.world.Step(timeStep, velocityIterations,
+            self.world.Step(TIME_STEP, velocityIterations,
                             positionIterations)
             self.world.ClearForces()
             # self.render(mode="state_pixels" if self.raw_pixels else "human")

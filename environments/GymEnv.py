@@ -1,7 +1,7 @@
 import gym
 
-class GymEnv:
 
+class GymEnv():
     def __init__(self, env_str):
         self.env_str = env_str
 

@@ -7,6 +7,7 @@ from agents.StableBaselinesAgents.A2CAgent import A2CAgent
 #from agents.StableBaselinesAgents.CustomAgent import CustomAgent
 from agents.StableBaselinesAgents.SACAgent import SACAgent
 from agents.StableBaselinesAgents.HERAgent import HERAgent
+from environments.BasketballEnvironment import BasketballEnvironment
 
 matplotlib.rcParams['backend'] = 'WebAgg'
 try:
@@ -62,6 +63,9 @@ def create_envs(env_str='', seed=42, do_render=True, random_densities=False, ran
         test_env = ScaleDraw(rendering=do_render, random_densities=random_densities,
                          random_boxsizes=random_boxsizes, normalize=normalize,
                          placed=placed, actions=actions, sides=sides, raw_pixels=raw_pixels)
+    elif env_str == 'basketball':
+        train_env = BasketballEnvironment(rendering=do_render, normalize=normalize, raw_pixels=raw_pixels)
+        test_env = BasketballEnvironment(rendering=do_render, normalize=normalize, raw_pixels=raw_pixels)
     else:
         train_env = GymEnv(env_str)
         train_env = train_env.create()

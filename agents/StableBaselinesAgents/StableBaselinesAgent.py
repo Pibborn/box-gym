@@ -64,8 +64,9 @@ class StableBaselinesAgent(Agent):
         PRINT_EVERY = config.printevery
         action_size = self.output_dim  # train_env.action_space.low.size
 
-        if not config.raw_pixels:
+        if type(train_env.observation_space) == gym.spaces.Dict:
             train_env.observation_space = self.convert_observation_space(train_env.observation_space)
+        if type(test_env.observation_space) == gym.spaces.Dict:
             test_env.observation_space = self.convert_observation_space(test_env.observation_space)
 
         train_env = DummyVecEnv([lambda: train_env])
