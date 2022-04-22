@@ -189,7 +189,7 @@ class BasketballEnvironment(EnvironmentInterface):
         return
 
 
-env = BasketballEnvironment(123, False)
+"""env = BasketballEnvironment(123, False)
 env.reset()
 env.rescaleState()
 print(env.state)
@@ -200,4 +200,4 @@ while True:
     env.step([1, 1])
     # print(env.state == oldstate)
     # env.reset()
-    # sleep(1)
+    # sleep(1)"""

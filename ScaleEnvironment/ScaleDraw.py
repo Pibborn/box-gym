@@ -26,6 +26,7 @@ import sys
 from time import time, sleep
 
 import numpy as np
+from collections import defaultdict
 
 import Box2D  # The main library
 from Box2D import b2Color, b2Vec2, b2DrawExtended
@@ -226,10 +227,11 @@ class ScaleDraw(gym.Env):
         self.joint = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=self.triangle, anchor=topCoordinate)
 
         # reset every dict/array and all the boxes on the screen
-        self.boxes = {}
-        self.boxsizes = {}
-        self.densities = {}
-        self.positions = {}
+        self.boxes = defaultdict(lambda: None)
+        self.boxsizes = defaultdict(lambda: None)
+        self.densities = defaultdict(lambda: None)
+        self.positions = defaultdict(lambda: None)
+        # self.joints = defaultdict(lambda: None)
         self.reset()
 
         # state calculation
@@ -543,6 +545,9 @@ class ScaleDraw(gym.Env):
         y = 6 + math.tan(self.bar.angle) * pos + BOXSIZE
         placedBox = self.moveBoxTo(box, x, y, index=index)
         placedBox.angle = self.bar.angle
+        """if self.joints[index] is not None:
+            self.world.DestroyJoint(self.joints[index])
+        self.joints[index] = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=placedBox, anchor=b2Vec2(x, 6))"""
         return placedBox
 
     def moveAlongBar(self, box, delta_pos, index=0):
@@ -656,7 +661,7 @@ class ScaleDraw(gym.Env):
         if type(action) in {float, np.float32, np.float64}:
             action = np.array([action])
 
-        if len(np.array([action])) != self.actions:
+        if len(action) != self.actions:
             raise AssertionError(
                 f"Number of values in array {len(action)} does not match number of actions {self.actions}!")
 
@@ -827,7 +832,7 @@ class ScaleDraw(gym.Env):
                 # pygame.draw.polygon(self.screen, self.convertDensityToRGB(density=fixture.density), vertices)
                 # here: don't use the red color channel, only use green and blue
                 pygame.draw.polygon(self.screen,
-                                    self.convertDensityToRGB(density=fixture.density, channels=[False, True, False]),
+                                    self.convertDensityToRGB(density=fixture.density, low=3.5, high=6.5, channels=[False, True, True]),
                                     vertices)
 
             """if body.userData is not None:
