@@ -231,7 +231,7 @@ class ScaleDraw(gym.Env):
         self.boxsizes = defaultdict(lambda: None)
         self.densities = defaultdict(lambda: None)
         self.positions = defaultdict(lambda: None)
-        # self.joints = defaultdict(lambda: None)
+        self.joints = defaultdict(lambda: None)
         self.reset()
 
         # state calculation
@@ -386,7 +386,7 @@ class ScaleDraw(gym.Env):
         newBox = self.world.CreateDynamicBody(
             position=(pos_x, pos_y),
             fixtures=fixtureDef(shape=polygonShape(box=(boxsize, boxsize)),
-                                density=density, friction=1.),
+                                density=density, friction=100.),
             # userData=self.convertDensityToGrayscale(density=density, low=4., high=6.)
         )
 
@@ -415,13 +415,17 @@ class ScaleDraw(gym.Env):
         """
         Deletes every single box in the world
         """
+        """for joint in self.joints.values():
+            self.world.DestroyJoint(joint)
+        self.joints = defaultdict(lambda: None)"""
+
         for box in self.boxes.values():
             try:
                 self.world.DestroyBody(box)
             except Exception as e:
                 print(e)
-        self.boxsizes = {}
-        self.boxes = {}
+        self.boxsizes = defaultdict(lambda: None)
+        self.boxes = defaultdict(lambda: None)
         return
 
     def resetBoxes(self):
@@ -460,10 +464,10 @@ class ScaleDraw(gym.Env):
                 boxes.append((position, boxsize))
 
         # save values of densities and box sizes and place the boxes
-        self.boxes = {}
-        self.boxsizes = {}
-        self.densities = {}
-        self.positions = {}
+        self.boxes = defaultdict(lambda: None)
+        self.boxsizes = defaultdict(lambda: None)
+        self.densities = defaultdict(lambda: None)
+        self.positions = defaultdict(lambda: None)
         i = 0
         for (i, (pos, size)) in enumerate(boxes, start=1):
             density = 4. + 2 * self.np_random.random()  # between 4 and 6
@@ -545,9 +549,9 @@ class ScaleDraw(gym.Env):
         y = 6 + math.tan(self.bar.angle) * pos + BOXSIZE
         placedBox = self.moveBoxTo(box, x, y, index=index)
         placedBox.angle = self.bar.angle
-        """if self.joints[index] is not None:
-            self.world.DestroyJoint(self.joints[index])
-        self.joints[index] = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=placedBox, anchor=b2Vec2(x, 6))"""
+
+        self.joints[f"{index}L"] = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=placedBox, anchor=b2Vec2(x - 0.5, 6.3))
+        self.joints[f"{index}R"] = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=placedBox, anchor=b2Vec2(x + 0.5, 6.3))
         return placedBox
 
     def moveAlongBar(self, box, delta_pos, index=0):
@@ -589,11 +593,6 @@ class ScaleDraw(gym.Env):
         self.internal_state = self.state.copy()
 
         if self.raw_pixels:
-            """self.screen = pygame.display.set_mode((self.width, self.height))
-            # overwrite the state with the pixel 3d array
-            self.state = pygame.surfarray.array3d(pygame.display.get_surface())
-            self.screen = pygame.display.set_mode((1, 1))"""
-
             # self.state = self.render("state_pixels")
             self.state = self.render(mode='rgb_array')  # (self.screen, (self.width, self.height))
 
@@ -666,7 +665,7 @@ class ScaleDraw(gym.Env):
                 f"Number of values in array {len(action)} does not match number of actions {self.actions}!")
 
         timesteps = 120
-        self.action = action
+        # self.action = action
         done = False
         for _ in range(timesteps):
             self.old_state = self.state
