@@ -8,7 +8,7 @@ virtualenv venv
 pip install -r requirements.txt
 ```
 
-## 2. Try to test the agent 
+## 2. Training the agent 
 
 ### Simple testing command
 
@@ -17,7 +17,7 @@ python run_agent.py --envname='scale_draw' --episodes=20000 --agent='sac'
 ```
 
 ### Agent selection
-Agents to choose from: [SAC](https://stable-baselines3.readthedocs.io/en/master/modules/sac.html) (recommended), [A2C](https://stable-baselines3.readthedocs.io/en/master/modules/a2c.html), [PPO](https://stable-baselines3.readthedocs.io/en/master/modules/ppo.html)
+Agents to choose from: [SAC](https://stable-baselines3.readthedocs.io/en/master/modules/sac.html) (recommended), [A2C](https://stable-baselines3.readthedocs.io/en/master/modules/a2c.html), [PPO](https://stable-baselines3.readthedocs.io/en/master/modules/ppo.html) (recommended when using raw images as input)
 Arguments: ```--agent='sac'```, ```agent='a2c'``` or ```agent='ppo'```
 
 ### Saving the agent:
