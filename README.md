@@ -9,7 +9,7 @@ pip install -r requirements.txt
 ```
 
 ## 2. Training the agent 
-For documentation for the basketball environment, click [here](Basketball README.md)
+For documentation for the basketball environment, click [here](Basketball_README.md)
 
 ### Simple testing command
 
