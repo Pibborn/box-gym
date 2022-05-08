@@ -9,6 +9,7 @@ pip install -r requirements.txt
 ```
 
 ## 2. Training the agent 
+For documentation for the basketball environment, click [here](Basketball README.md)
 
 ### Simple testing command
 
@@ -51,7 +52,7 @@ Number of boxes:
 * If you somehow cannot install Xvfb (like on Mac), add the ```--disable_xvfb``` argument
 * Number of episodes: ```--episodes=50000``` (default: 10000)
 * Steps between each print: ```--printevery=100``` (default: 500)
-* Use pixels as observations instad of extracted values: ```--raw_pixels```
+* Use pixels as observations instead of extracted values: ```--raw_pixels```
 * Normalization of observations and actions: ```--normalize```
 * Render the simulation: ```--rendering```
 
