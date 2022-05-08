@@ -4,10 +4,12 @@ import matplotlib
 
 from agents.OtherAgents.SRAgent import SRAgent
 from agents.StableBaselinesAgents.A2CAgent import A2CAgent
-#from agents.StableBaselinesAgents.CustomAgent import CustomAgent
+# from agents.StableBaselinesAgents.CustomAgent import CustomAgent
+from agents.StableBaselinesAgents.PPOAgent import PPOAgent
 from agents.StableBaselinesAgents.SACAgent import SACAgent
 from agents.StableBaselinesAgents.HERAgent import HERAgent
 from environments.BasketballEnvironment import BasketballEnvironment
+from environments.Pendulum import PendulumEnv, RGBArrayAsObservationWrapper
 
 matplotlib.rcParams['backend'] = 'WebAgg'
 try:
@@ -35,17 +37,19 @@ install(show_locals=True)
 
 
 def create_envs(env_str='', seed=42, do_render=True, random_densities=False, random_boxsizes=False, normalize=False,
-                placed=1, actions=1, sides=2, raw_pixels=False):
+                placed=1, actions=1, sides=2, raw_pixels=False, walls=0,
+                random_density=False, random_ball_size=False, random_basket=False, random_ball_position=False):
     allowed_strings = ['scale', 'scale_exp', 'scale_single', 'scale_draw', '']
-    #if str(env_str) not in allowed_strings:
+    # if str(env_str) not in allowed_strings:
     #    raise AssertionError(f"Environment name {env_str} not in allowed list {allowed_strings}")
+    env_str = env_str.lower()
     if env_str == 'scale':
         train_env = Scale(rendering=do_render, random_densities=random_densities,
                           random_boxsizes=random_boxsizes, normalize=normalize,
                           placed=placed, actions=actions, sides=sides, raw_pixels=raw_pixels)
         test_env = Scale(rendering=do_render, random_densities=random_densities,
-                          random_boxsizes=random_boxsizes, normalize=normalize,
-                          placed=placed, actions=actions, sides=sides, raw_pixels=raw_pixels)
+                         random_boxsizes=random_boxsizes, normalize=normalize,
+                         placed=placed, actions=actions, sides=sides, raw_pixels=raw_pixels)
     elif env_str == 'scale_exp':
         train_env = ScaleExperiment(rendering=do_render, random_densities=random_densities,
                                     random_boxsizes=random_boxsizes, actions=2, normalize=normalize, boxes=2)
@@ -58,14 +62,26 @@ def create_envs(env_str='', seed=42, do_render=True, random_densities=False, ran
                                    random_boxsizes=random_boxsizes, actions=1, normalize=normalize, boxes=2)
     elif env_str == 'scale_draw':
         train_env = ScaleDraw(rendering=do_render, random_densities=random_densities,
-                          random_boxsizes=random_boxsizes, normalize=normalize,
-                          placed=placed, actions=actions, sides=sides, raw_pixels=raw_pixels)
+                              random_boxsizes=random_boxsizes, normalize=normalize,
+                              placed=placed, actions=actions, sides=sides, raw_pixels=raw_pixels)
         test_env = ScaleDraw(rendering=do_render, random_densities=random_densities,
-                         random_boxsizes=random_boxsizes, normalize=normalize,
-                         placed=placed, actions=actions, sides=sides, raw_pixels=raw_pixels)
+                             random_boxsizes=random_boxsizes, normalize=normalize,
+                             placed=placed, actions=actions, sides=sides, raw_pixels=raw_pixels)
     elif env_str == 'basketball':
-        train_env = BasketballEnvironment(rendering=do_render, normalize=normalize, raw_pixels=raw_pixels)
-        test_env = BasketballEnvironment(rendering=do_render, normalize=normalize, raw_pixels=raw_pixels)
+        train_env = BasketballEnvironment(rendering=do_render, normalize=normalize, raw_pixels=raw_pixels, walls=walls,
+                                          random_density=random_density or random_densities,
+                                          random_ball_size=random_ball_size or random_boxsizes,
+                                          random_basket=random_basket, random_ball_position=random_ball_position)
+        test_env = BasketballEnvironment(rendering=do_render, normalize=normalize, raw_pixels=raw_pixels, walls=walls,
+                                         random_density=random_density or random_densities,
+                                         random_ball_size=random_ball_size or random_boxsizes,
+                                         random_basket=random_basket, random_ball_position=random_ball_position)
+    elif env_str == 'pendulum':
+        train_env = PendulumEnv(g=9.81, rendering=do_render)
+        test_env = PendulumEnv(g=9.81, rendering=do_render)
+        if args.raw_pixels:
+            train_env = RGBArrayAsObservationWrapper(train_env)
+            test_env = RGBArrayAsObservationWrapper(test_env)
     else:
         train_env = GymEnv(env_str)
         train_env = train_env.create()
@@ -155,6 +171,12 @@ if __name__ == '__main__':
     parser.add_argument('--actions', type=int, default=1)
     parser.add_argument('--sides', type=int, default=2)
     parser.add_argument('--raw_pixels', action='store_true')
+    # additional basketball settings
+    parser.add_argument('--random_density', action='store_true')  # equivalent to --random_densities flag
+    parser.add_argument('--random_ball_size', action='store_true')  # equivalent to --random_boxsize flag
+    parser.add_argument('--random_basket', action='store_true')
+    parser.add_argument('--random_ball_position', action='store_true')
+    parser.add_argument('--walls', type=int, default=0)
     args = parser.parse_args()
 
     if not args.disable_xvfb:
@@ -169,19 +191,29 @@ if __name__ == '__main__':
         train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.rendering,
                                           random_densities=args.random_densities, random_boxsizes=args.random_boxsizes,
                                           normalize=args.normalize, placed=args.placed, actions=args.actions,
-                                          sides=args.sides, raw_pixels=args.raw_pixels)
+                                          sides=args.sides, raw_pixels=args.raw_pixels, walls=args.walls,
+                                          random_density=args.random_density, random_ball_size=args.random_ball_size,
+                                          random_basket=args.random_basket, random_ball_position=args.random_ball_position)
         input_dim, output_dim = get_env_dims(train_env)
         # agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
         if args.agent.lower() == 'sac':
-            agent = SACAgent(input_dim, output_dim, lr=args.lr, policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
+            agent = SACAgent(input_dim, output_dim, lr=args.lr,
+                             policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
             if args.location == "":
                 args.location = "SAC_Model"
         elif args.agent.lower() == 'a2c':
-            agent = A2CAgent(input_dim, output_dim, lr=args.lr, policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
+            agent = A2CAgent(input_dim, output_dim, lr=args.lr,
+                             policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
             if args.location == "":
                 args.location = "A2C_Model"
-        elif args.agent.lower() == 'her': # todo: delete
-            agent = HERAgent(input_dim, output_dim, lr=args.lr,) # policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
+        elif args.agent.lower() == 'ppo':
+            agent = PPOAgent(input_dim, output_dim, lr=args.lr,
+                             policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
+            if args.location == "":
+                args.location = "A2C_Model"
+        elif args.agent.lower() == 'her':  # todo: delete
+            agent = HERAgent(input_dim, output_dim,
+                             lr=args.lr, )  # policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
             if args.location == "":
                 args.location = "HER_Model"
         elif args.agent.lower() == 'custom':
@@ -209,7 +241,8 @@ if __name__ == '__main__':
         # load the agent
         train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.rendering,
                                           random_densities=args.random_densities, random_boxsizes=args.random_boxsizes,
-                                          normalize=args.normalize, placed=args.placed, actions=args.actions, sides=args.sides)
+                                          normalize=args.normalize, placed=args.placed, actions=args.actions,
+                                          sides=args.sides)
         input_dim, output_dim = get_env_dims(test_env)
         if args.agent == 'sac':
             agent = SACAgent(input_dim, output_dim, lr=args.lr)

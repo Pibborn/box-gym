@@ -6,6 +6,7 @@ from typing import TypeVar, Generic, Tuple, Union, Optional, SupportsFloat
 
 import gym
 from gym import spaces
+from gym.spaces import Box
 import pygame
 from Box2D import b2Vec2
 from Box2D.b2 import (world, polygonShape, circleShape, staticBody, dynamicBody, kinematicBody, edgeShape, fixtureDef)
@@ -45,7 +46,7 @@ def rescale_movement(original_interval, value, to_interval=(-1, +1)):
 
 
 class EnvironmentInterface(gym.Env, ABC):
-    def __init__(self, seed=None, normalize=False, rendering=False, raw_pixels=False):
+    def __init__(self, seed=None, normalize=False, rendering=False, raw_pixels=False, walls=0):
         self.seed(seed)
 
         self.num_envs = 1  # for stable-baseline3
@@ -73,10 +74,24 @@ class EnvironmentInterface(gym.Env, ABC):
 
         # setting up the objects on the screen
         self.ground = self.world.CreateStaticBody(
-            position=(0, 0),
-            shapes=polygonShape(box=(40, 1)),
+            position=(self.world_width/2, 0),
+            shapes=polygonShape(box=(self.world_width, 1)),
             userData=groundColor,
         )
+
+        if walls > 0:
+            self.right_wall = self.world.CreateStaticBody(
+                position=(self.world_width, 0),
+                shapes=polygonShape(box=(1, self.world_height)),
+                userData=groundColor,
+            )
+        if walls > 1:
+            self.left_wall = self.world.CreateStaticBody(
+                position=(0, 0),
+                shapes=polygonShape(box=(1, self.world_height)),
+                userData=groundColor,
+            )
+
 
         self.normalize = normalize
         self.rendering = rendering  # should the simulation be rendered or not
@@ -86,11 +101,10 @@ class EnvironmentInterface(gym.Env, ABC):
         # self.action_space = gym.spaces.Box(low=np.array([-np.pi, 0]), high=np.array([np.pi, 100]))
         # self.observation_space = gym.spaces.Box(low=np.array([-np.pi, 0]), high=np.array([np.pi, 100]))
         self.action_space = None
-        self.observation_space = None if not self.raw_pixels else spaces.Box(low=0, high=1. if self.normalize else 255,
-                                                                             shape=(
-                                                                                 self.world_width, self.world_height,
-                                                                                 3),
-                                                                             dtype=np.float32 if self.normalize else np.uint8)
+        self.observation_space = Box(low=0, high=1. if self.normalize else 255,
+                                     shape=(self.world_width, self.world_height,
+                                            3),
+                                     dtype=np.float32 if self.normalize else np.uint8) if self.raw_pixels else None
 
         self.state = None
         self.old_state = None
@@ -98,10 +112,9 @@ class EnvironmentInterface(gym.Env, ABC):
         self.reset()
 
     def step(self, action=None):
-        # print(action)
         done = False
-        for _ in range(120):
-            self.render()
+        for _ in range(300):
+            # self.render()
             self.old_state = self.state
             self.state, reward, done, info = self.internal_step(action)
             action = None
@@ -237,7 +250,9 @@ class EnvironmentInterface(gym.Env, ABC):
         # Draw Functions
         def my_draw_polygon(polygon, body, fixture):
             vertices = [(body.transform * v) * PPM for v in polygon.vertices]
-            vertices = [b2Vec2(x * PPM, self.screen_height - y * PPM) for (x, y) in polygon.vertices]
+            vertices = [(v[0], SCREEN_HEIGHT - v[1]) for v in vertices]
+            # vertices = [b2Vec2(x * PPM, self.screen_height - y * PPM) for (x, y) in polygon.vertices]
+            # vertices = [b2Vec2(self.screen_width - x * PPM, self.screen_height - y * PPM) for (x, y) in polygon.vertices]
             """vertices2 = [v * PPM for v in polygon.vertices]
             # vertices = [(v[0] + SCREEN_WIDTH / 2, SCREEN_HEIGHT - v[1]) for v in vertices]
             
@@ -257,7 +272,9 @@ class EnvironmentInterface(gym.Env, ABC):
 
         def my_draw_circle(circle, body, fixture):
             # position = body.transform * circle.pos * PPM
-            position = (circle.pos[0] * PPM, self.screen_height - circle.pos[1] * PPM)
+            # position = (circle.pos[0] * PPM, self.screen_height - circle.pos[1] * PPM)
+            position = body.transform * circle.pos * PPM
+            position = (position[0], SCREEN_HEIGHT - position[1])
             pygame.draw.circle(self.screen, colors[body.type], [int(
                 x) for x in position], int(circle.radius * PPM))
 

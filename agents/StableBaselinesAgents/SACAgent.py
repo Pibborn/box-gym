@@ -44,8 +44,8 @@ class SACAgent(StableBaselinesAgent):
         self.agent = SAC(policy=self.policy, env=train_env, verbose=verbose, use_sde=use_sde,
                          tensorboard_log='results/temp', learning_rate=self.lr,
                          # play with the following parameters if you use pictures as image
-                         # buffer_size=800 if self.policy == 'CnnPolicy' else 1000000,
-                         # batch_size=128 if self.policy == 'CnnPolicy' else 256,
+                         buffer_size=800 if self.policy == 'CnnPolicy' else 1000000,
+                         #batch_size=128 if self.policy == 'CnnPolicy' else 256,
                          )
         return self.agent
 

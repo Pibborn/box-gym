@@ -197,9 +197,11 @@ class ScaleDraw(gym.Env):
             self.observation_space = spaces.Dict(spaces=observation_dict)  # convert to Spaces Dict
 
         else:
-            self.observation_space = spaces.Box(low=0, high=1. if self.normalize else 255,
+            """self.observation_space = spaces.Box(low=0, high=1. if self.normalize else 255,
                                                 shape=(self.width, self.height, 3),
-                                                dtype=np.float32 if self.normalize else np.uint8)
+                                                dtype=np.float32 if self.normalize else np.uint8)"""
+            dummy_obs = self.render("rgb_array")
+            self.observation_space = spaces.Box(low=0, high=255, shape=dummy_obs.shape, dtype=dummy_obs.dtype)
 
         # setting up the objects on the screen
         self.ground = self.world.CreateStaticBody(
@@ -550,8 +552,8 @@ class ScaleDraw(gym.Env):
         placedBox = self.moveBoxTo(box, x, y, index=index)
         placedBox.angle = self.bar.angle
 
-        self.joints[f"{index}L"] = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=placedBox, anchor=b2Vec2(x - 0.5, 6.3))
-        self.joints[f"{index}R"] = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=placedBox, anchor=b2Vec2(x + 0.5, 6.3))
+        # self.joints[f"{index}L"] = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=placedBox, anchor=b2Vec2(x - 0.5, 6.3))
+        # self.joints[f"{index}R"] = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=placedBox, anchor=b2Vec2(x + 0.5, 6.3))
         return placedBox
 
     def moveAlongBar(self, box, delta_pos, index=0):
@@ -664,6 +666,7 @@ class ScaleDraw(gym.Env):
             raise AssertionError(
                 f"Number of values in array {len(action)} does not match number of actions {self.actions}!")
 
+        # print(action, self.state.shape)
         timesteps = 120
         # self.action = action
         done = False
