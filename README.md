@@ -72,4 +72,24 @@ python run_agent.py --envname='scale_draw' --random_densities --random_boxsizes 
 
 ## 4. Extracting data from the (pre-trained) agent
 
+* first, make sure you have an agent saved, from which we want to extract data including box positions at the end and the sizes and densities of the boxes
+* to extract these information, run something like this
+```
+python extract_data.py --envname="scale_draw" --random_densities --random_boxsizes --episodes=1000 --location="SAC_25000" --path="result25000"
+```
+* important here is, that we still use the same flags as before when we trained this agent (e.g. use ```--random_densities``` and ```--random_boxsizes```)
+
+The files will be saved in the savedagents/results/ folder as a csv file, which we can name with the ```--path``` flag (e.g. ```--path="result2500"```)
 ...
+
+## 5. Run symbolic regression on the extracted data and fit a function to it
+
+Once we ran the extract_data.py file, we have a CSV file in the savedagents/results/ folder with following structure:
+|    | Position 1  | Position 2  | Density 1   | Density 2   | Box Size 1  | Box Size 2  |
+| -- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
+| 0  | 0.30554572  | -0.3609829  | 4.2378      | 4.926749    | 1.135487    | 1.0633456   |
+| 1  | 0.57666147  | -0.26535797 | 4.6346793   | 4.3976474   | 0.8974464   | 1.1024169   |
+
+==NOTE:== for now, it only works with two boxes, which mean that we can only use or default setting with one box placed by the agent and one placed randomly before on the scale. 
+
+(todo: explain how to use the symbolic regression files)
