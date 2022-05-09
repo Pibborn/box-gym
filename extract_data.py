@@ -1,6 +1,7 @@
 import argparse
 import math
 
+import numpy as np
 import pandas as pd
 
 from stable_baselines3 import SAC
@@ -9,39 +10,26 @@ from ScaleEnvironment.ScaleExperiment import rescale_movement
 from agents.StableBaselinesAgents.SACAgent import SACAgent
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
-def writeData(env, agent, config):
-    df = pd.DataFrame({'Position 1': pd.Series(dtype='float'),
-                       'Position 2': pd.Series(dtype='float'),
-                       'Density 1': pd.Series(dtype='float'),
-                       'Density 2': pd.Series(dtype='float'),
-                       'Boxsize 1': pd.Series(dtype='float'),
-                       'Boxsize 2': pd.Series(dtype='float')})
+def writeData(env, agent, config, box_number=2):
+    # create DataFrame: first 1/3 columns are positions, the next 1/3 densities and the rest the sizes of the boxes
+    df_dict = {}
+    df_dict.update({f'Position {i+1}': pd.Series(dtype='float') for i in range(box_number)})
+    df_dict.update({f'Density {i+1}': pd.Series(dtype='float') for i in range(box_number)})
+    df_dict.update({f'Boxsize {i+1}': pd.Series(dtype='float') for i in range(box_number)})
+    df = pd.DataFrame(df_dict)
+
     test_matches = 0
     env.seed(1080)
     test_env = DummyVecEnv([lambda: env])
     #test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
 
     for episode in range(1, config.episodes + 1):
-        state = test_env.reset()  # torch.tensor(env.reset())
+        state = np.array(test_env.reset())  # torch.tensor(env.reset())
         R = 0  # return (sum of rewards)
         t = 0
         done = False
         while not done:
             action, states = agent.agent.predict(state, deterministic=True)
-            #pos1 = test_env.venv.boxA.position[0] / math.cos(test_env.venv.bar.angle)
-            #state = test_env.get_original_obs()
-            if config.normalize:
-                pos1 = rescale_movement([-1, 1], state[0][0], [-20, 20])
-                den1 = rescale_movement([0, 1], state[0][4], [4, 6])
-                den2 = rescale_movement([0, 1], state[0][5], [4, 6])
-                size1 = rescale_movement([0, 1], state[0][6], [0.8, 1.2])
-                size2 = rescale_movement([0, 1], state[0][7], [0.8, 1.2])
-            else:
-                pos1 = state[0][0]
-                den1 = state[0][4]
-                den2 = state[0][5]
-                size1 = state[0][6]
-                size2 = state[0][7]
             state, reward, done, info = env.step(action[0])
             R += reward
             t += 1
@@ -49,10 +37,19 @@ def writeData(env, agent, config):
             if done or reset:
                 break
         if R > 1:
-            if env.actions == 2:
-                df.loc[test_matches] = [action[0][0], action[0][1], den1, den2, size1, size2]
-            else:  # different things to track
-                df.loc[test_matches] = [pos1, action[0][0], den1, den2, size1, size2]
+            density_index = 2 + box_number
+            size_index = 2 + 2 * box_number
+            if config.normalize:
+                # only can access positions of placed boxes here
+                positions = rescale_movement([-1, 1], state[:density_index-2], [-20, 20]) # todo: fix normalized data extraction
+                densities = rescale_movement([0, 1], state[density_index:size_index], [4, 6])
+                sizes = rescale_movement([0, 1], state[size_index:], [0.8, 1.2])
+            else:
+                positions = state[:density_index-2]
+                densities = state[density_index:size_index]
+                sizes = state[size_index:]
+
+            df.loc[test_matches] = np.concatenate((positions, densities, sizes))
             test_matches += 1
             #print(state)
             #df2 = pd.DataFrame([[]], columns=list('AB'))
@@ -95,12 +92,17 @@ if __name__ == '__main__':
     parser.add_argument('--reward-norm', action='store_true')
     parser.add_argument('--normalize', action='store_true')
     parser.add_argument('--path', type=str, default='results')
+    parser.add_argument('--placed', type=int, default=1)
+    parser.add_argument('--actions', type=int, default=1)
+    parser.add_argument('--sides', type=int, default=2)
+    parser.add_argument('--raw_pixels', action='store_true')
     parser.add_argument('--mode', type=int, default=1)
     args = parser.parse_args()
 
     _, test_env = run_agent.create_envs(args.envname, seed=args.seed, do_render=args.rendering,
                                         random_densities=args.random_densities, random_boxsizes=args.random_boxsizes,
-                                        normalize=args.normalize)
+                                        normalize=args.normalize, placed=args.placed, actions=args.actions,
+                                        sides=args.sides, raw_pixels=args.raw_pixels)
     input_dim, output_dim = run_agent.get_env_dims(test_env)
     if args.agent == 'sac':
         agent = SACAgent(input_dim, output_dim)
@@ -114,7 +116,7 @@ if __name__ == '__main__':
         raise NotImplementedError("not implemented")
 
     if args.mode == 1:
-        writeData(env=test_env, agent=agent, config=args)
+        writeData(env=test_env, agent=agent, config=args, box_number=args.placed + args.actions)
 
     else:
-        readData(env=test_env, config=args)
+        readData(env=test_env, config=args, box_number=args.placed + args.actions)

@@ -95,7 +95,8 @@ class StableBaselinesAgent(Agent):
         del self.agent
         self.agent = SAC.load("SAC_Model_test")"""
         self.test_loop(test_env, config=config, verbose=verbose)
-        self.evaluate_model(test_env=test_env, config=config)
+        # self.evaluate_model(test_env=test_env, config=config)
+        return
 
     def save_agent(self, location):
         self.agent.save_agent(location)
@@ -167,5 +168,5 @@ class StableBaselinesAgent(Agent):
             f"Success rate of test episodes: {test_matches}/{MAX_EPISODES}={(test_matches / MAX_EPISODES * 100):,.2f}%")
         test_success_rate = test_matches / MAX_EPISODES
         wandb.log({'test_success_rate': test_success_rate})
-        test_env.close()
+        #test_env.close()
         return test_rewards
