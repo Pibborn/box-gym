@@ -66,6 +66,7 @@ class EnvironmentInterface(gym.Env, ABC):
         self.clock = pygame.time.Clock()
 
         self.timesteps = 0
+        self.max_timesteps = 300
 
         # set up the box2d world
         self.world = world(gravity=(0, -9.80665), doSleep=True)
@@ -113,7 +114,8 @@ class EnvironmentInterface(gym.Env, ABC):
 
     def step(self, action=None):
         done = False
-        for _ in range(300):
+        # self.state = self.reset()
+        for _ in range(self.max_timesteps):
             # self.render()
             self.old_state = self.state
             self.state, reward, done, info = self.internal_step(action)

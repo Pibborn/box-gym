@@ -1,5 +1,6 @@
 import time
 
+import gym
 import matplotlib
 
 from agents.OtherAgents.SRAgent import SRAgent
@@ -246,7 +247,8 @@ if __name__ == '__main__':
         input_dim, output_dim = get_env_dims(test_env)
         if args.agent == 'sac':
             agent = SACAgent(input_dim, output_dim, lr=args.lr)
-            test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
+            if type(test_env.observation_space) != gym.spaces.Box:
+                test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
             args.location = f"savedagents/models/{args.location if args != '' else 'SAC_Model'}"
             agent.agent = SAC.load(args.location if args != '' else 'SAC_Model', env=test_env)
             # agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")

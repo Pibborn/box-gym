@@ -1,6 +1,7 @@
 from time import sleep
 
 import gym
+from gym.spaces import Box
 import pygame
 from Box2D import b2Vec2
 from Box2D.b2 import (world, polygonShape, circleShape, staticBody, dynamicBody, edgeShape, fixtureDef)
@@ -119,20 +120,25 @@ class BasketballEnvironment(EnvironmentInterface):
         self.ball = None
         self.basket = None
         self.touched_the_basket = False  # for reward determination later
+        self.starting_position = None
+
+        self.max_timesteps = 300
 
         if rendering:
             pygame.display.set_caption('Basketball Environment')
 
         # action space and observation space
-        self.action_space = gym.spaces.Box(low=np.array([0, 0]), high=np.array([15, 15]))
+        self.action_space = Box(low=np.array([0, 0]), high=np.array([15, 15] if not self.normalize else [1, 1]))
         # alternatively: use (total) velocity and angle to throw the ball
         # self.action_space = gym.spaces.Box(low=np.array([-np.pi, 0]), high=np.array([np.pi, 100]))
 
         # first, we have the ball information: x coordinate, y coordinate, angle, velocity, radius/size, density
         # then, we have the basket info: x coordinate, y coordinate (both of the center of the ring), radius of the ring
-        self.observation_space = gym.spaces.Box(low=np.array([0, 0, - np.pi, -10, 0.5, 4, 0, 0, 0.5]),
-                                                high=np.array([self.world_width, self.world_height, np.pi, 10, 1.5, 6,
-                                                               self.world_width, self.world_height, 3]))
+        self.observation_space = Box(low=np.array([0, 0, - np.pi, -10, 0.5, 4, 0, 0, 0.5] if not self.normalize
+                                                  else [0, 0, -1, -1, 0, 0, 0, 0, 0]),
+                                     high=np.array([self.world_width, self.world_height, np.pi, 10, 1.5, 6,
+                                                    self.world_width, self.world_height, 3] if not self.normalize
+                                                   else [1 for _ in range(9)]))
 
         self.reset()
 
@@ -171,7 +177,18 @@ class BasketballEnvironment(EnvironmentInterface):
             return True
         return False
 
+    def printSuccess(self):
+        decimal_places = 2
+        distance_to_basket = self.basket.x - self.basket.width - self.basket.radius - self.starting_position[0]
+        return_message = f"Success!\t " \
+                         f"| Starting position: {[float(f'%.{decimal_places}f' % n) for n in self.starting_position]}\t" \
+                         f"| Distance: {f'%.{decimal_places}f' % distance_to_basket}\t  " \
+                         f"| Mass: {f'%.{decimal_places}f' % self.ball.ball.mass} "
+        return return_message
+
     def performAction(self, action):
+        if self.normalize:
+            action = rescale_movement(np.array([[0, 0], [1, 1]]), action, np.array([[0, 0], [15, 15]]))
         delta_x, delta_y = float(action[0]), float(action[1])
         x, y = self.ball.ball.position
         density = self.ball.density
@@ -187,18 +204,25 @@ class BasketballEnvironment(EnvironmentInterface):
         if not (self.ball and self.basket):  # check if basket and ball exist in the world
             return None
         self.state = np.concatenate((self.ball.get_state(), self.basket.get_state()))
+        if self.normalize:
+            self.normalized_state = self.rescaleState(np.concatenate((self.ball.get_state(), self.basket.get_state())))
         return self.state
 
     def rescaleState(self, state=None):
         if state is None:
             state = self.updateState()
         if self.raw_pixels:
-            normalized_state = rescale_movement([0, 255], self.state, [0., 1.])
+            self.normalized_state = rescale_movement([0, 255], self.state, [0., 1.])
 
         else:
-            normalized_state = rescale_movement([self.observation_space.low, self.observation_space.high], self.state,
-                                                [0, 1])
-        return normalized_state
+            self.normalized_state = rescale_movement(
+                # [self.observation_space.low, self.observation_space.high],
+                np.array([[0, 0, - np.pi, -10, 0.5, 4, 0, 0, 0.5],
+                          [self.world_width, self.world_height, np.pi, 10, 1.5, 6,
+                           self.world_width, self.world_height, 3]]),
+                self.state,
+                np.array([np.array([0, 0, -1, -1, 0, 0, 0, 0, 0]), np.array([1 for _ in range(9)])]))
+        return self.normalized_state
 
     def reset(self):
         # delete old ball and basket
@@ -228,5 +252,7 @@ class BasketballEnvironment(EnvironmentInterface):
         self.basket = Basket(self.world, x=basket_x, y=basket_y, radius=basket_radius, width=basket_width)
         self.world = self.basket.get_world()
 
+        self.starting_position = (ball_x, ball_y)
         self.touched_the_basket = False
-        return
+        self.state = self.updateState()
+        return self.rescaleState() if self.normalize else self.state
