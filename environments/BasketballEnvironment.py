@@ -220,7 +220,7 @@ class BasketballEnvironment(EnvironmentInterface):
                 np.array([[0, 0, - np.pi, -10, 0.5, 4, 0, 0, 0.5],
                           [self.world_width, self.world_height, np.pi, 10, 1.5, 6,
                            self.world_width, self.world_height, 3]]),
-                self.state,
+                state,
                 np.array([np.array([0, 0, -1, -1, 0, 0, 0, 0, 0]), np.array([1 for _ in range(9)])]))
         return self.normalized_state
 

@@ -10,7 +10,8 @@ from agents.StableBaselinesAgents.PPOAgent import PPOAgent
 from agents.StableBaselinesAgents.SACAgent import SACAgent
 from agents.StableBaselinesAgents.HERAgent import HERAgent
 from environments.BasketballEnvironment import BasketballEnvironment
-from environments.Pendulum import PendulumEnv, RGBArrayAsObservationWrapper
+# from environments.Pendulum import PendulumEnv, RGBArrayAsObservationWrapper
+from environments.OrbitEnvironment import OrbitEnvironment
 
 matplotlib.rcParams['backend'] = 'WebAgg'
 try:
@@ -39,7 +40,9 @@ install(show_locals=True)
 
 def create_envs(env_str='', seed=42, do_render=True, random_densities=False, random_boxsizes=False, normalize=False,
                 placed=1, actions=1, sides=2, raw_pixels=False, walls=0,
-                random_density=False, random_ball_size=False, random_basket=False, random_ball_position=False):
+                random_density=False, random_ball_size=False, random_basket=False, random_ball_position=False,
+                random_planet_position=False, random_gravity=False,
+                random_satellite_position=False, random_satellite_density=False, random_satellite_size=False):
     allowed_strings = ['scale', 'scale_exp', 'scale_single', 'scale_draw', '']
     # if str(env_str) not in allowed_strings:
     #    raise AssertionError(f"Environment name {env_str} not in allowed list {allowed_strings}")
@@ -77,12 +80,23 @@ def create_envs(env_str='', seed=42, do_render=True, random_densities=False, ran
                                          random_density=random_density or random_densities,
                                          random_ball_size=random_ball_size or random_boxsizes,
                                          random_basket=random_basket, random_ball_position=random_ball_position)
-    elif env_str == 'pendulum':
+        """elif env_str == 'pendulum':
         train_env = PendulumEnv(g=9.81, rendering=do_render)
         test_env = PendulumEnv(g=9.81, rendering=do_render)
         if args.raw_pixels:
             train_env = RGBArrayAsObservationWrapper(train_env)
-            test_env = RGBArrayAsObservationWrapper(test_env)
+            test_env = RGBArrayAsObservationWrapper(test_env)"""
+    elif env_str == 'orbit':
+        train_env = OrbitEnvironment(rendering=do_render, normalize=normalize, raw_pixels=raw_pixels,
+                                     random_planet_position=random_planet_position, random_gravity=random_gravity,
+                                     random_satellite_position=random_satellite_position,
+                                     random_satellite_size=random_satellite_size,
+                                     random_satellite_density=random_satellite_density)
+        test_env = OrbitEnvironment(rendering=do_render, normalize=normalize, raw_pixels=raw_pixels,
+                                     random_planet_position=random_planet_position, random_gravity=random_gravity,
+                                     random_satellite_position=random_satellite_position,
+                                     random_satellite_size=random_satellite_size,
+                                     random_satellite_density=random_satellite_density)
     else:
         train_env = GymEnv(env_str)
         train_env = train_env.create()
@@ -178,6 +192,12 @@ if __name__ == '__main__':
     parser.add_argument('--random_basket', action='store_true')
     parser.add_argument('--random_ball_position', action='store_true')
     parser.add_argument('--walls', type=int, default=0)
+    # additional orbit settings
+    parser.add_argument('--random_planet_position', action='store_true')
+    parser.add_argument('--random_gravity', action='store_true')
+    parser.add_argument('--random_satellite_size', action='store_true')
+    parser.add_argument('--random_satellite_position', action='store_true')
+    parser.add_argument('--random_satellite_density', action='store_true')
     args = parser.parse_args()
 
     if not args.disable_xvfb:
@@ -194,7 +214,10 @@ if __name__ == '__main__':
                                           normalize=args.normalize, placed=args.placed, actions=args.actions,
                                           sides=args.sides, raw_pixels=args.raw_pixels, walls=args.walls,
                                           random_density=args.random_density, random_ball_size=args.random_ball_size,
-                                          random_basket=args.random_basket, random_ball_position=args.random_ball_position)
+                                          random_basket=args.random_basket, random_ball_position=args.random_ball_position,
+                                          random_gravity=args.random_gravity, random_satellite_position=args.random_satellite_position,
+                                          random_planet_position=args.random_planet_position, random_satellite_size=args.random_satellite_size,
+                                          random_satellite_density=args.random_satellite_size)
         input_dim, output_dim = get_env_dims(train_env)
         # agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
         if args.agent.lower() == 'sac':

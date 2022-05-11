@@ -65,9 +65,9 @@ class StableBaselinesAgent(Agent):
         action_size = self.output_dim  # train_env.action_space.low.size
 
         if type(train_env.observation_space) == gym.spaces.Dict:
-            train_env.observation_space = self.convert_observation_space(train_env.observation_space)
+            train_env.observation_space = self.convert_observation_space(train_env.observation_space, order=train_env.order)
         if type(test_env.observation_space) == gym.spaces.Dict:
-            test_env.observation_space = self.convert_observation_space(test_env.observation_space)
+            test_env.observation_space = self.convert_observation_space(test_env.observation_space, order=train_env.order)
 
         train_env = DummyVecEnv([lambda: train_env])
         test_env = DummyVecEnv([lambda: test_env])

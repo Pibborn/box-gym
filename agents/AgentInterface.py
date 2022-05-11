@@ -9,6 +9,7 @@ import wandb
 
 class Agent(ABC, torch.nn.Module):
     """Class for an agent which tries to train and test a special method/learning algorithm and returns the results."""
+
     @abstractmethod
     def __init__(self, input_dim: int, output_dim: int):
         """Create an agent object.
@@ -23,20 +24,26 @@ class Agent(ABC, torch.nn.Module):
         self.output_dim = output_dim
 
     @classmethod
-    def convert_observation_space(self, obs_space: spaces.Dict) -> spaces.Box:
+    def convert_observation_space(self, obs_space: spaces.Dict, order: list[str] = []) -> spaces.Box:
         """Convert an existing scale environment so that the observation space is a Box instead of a Dict.
 
                 :type obs_space: gym.spaces.Dict
                 :param obs_space: the given observation space in the old format
+                :type order: list[str]
+                :param order: give a list of the descriptions as an order for the new observation space
                 :returns: the new observation space as a Box
                 :rtype: gym.spaces.Box
         """
         # not the best solution
-        low = [obs_space[x].low[0] for x in obs_space]
-        high = [obs_space[x].high[0] for x in obs_space]
-        #shape = obs_space[list(obs_space)[0]].shape[2]
+        if not order:
+            low = [obs_space[x].low[0] for x in obs_space]
+            high = [obs_space[x].high[0] for x in obs_space]
+            # shape = obs_space[list(obs_space)[0]].shape[2]
+        else:
+            low = [obs_space[entry].low[0] for entry in order]
+            high = [obs_space[entry].high[0] for entry in order]
         observation_space = spaces.Box(low=np.array(low), high=np.array(high),
-                                       #shape=(shape,), # todo: fix shape
+                                       # shape=(shape,), # todo: fix shape
                                        dtype=np.float32)
         return observation_space
 
@@ -54,7 +61,7 @@ class Agent(ABC, torch.nn.Module):
         raise NotImplementedError("Train Function not implemented")
 
     @classmethod
-    def calculate_returns(self, rewards, discount_factor, normalize = True):
+    def calculate_returns(self, rewards, discount_factor, normalize=True):
         """Calculate the returns regarding the discount_factor within an episode.
 
                 :type rewards: list[float]
@@ -131,7 +138,6 @@ class Agent(ABC, torch.nn.Module):
                 :rtype: tuple[list[float], list[float]]
                 :returns: train and test rewards for plotting"""
         raise NotImplementedError("Train Function not implemented")
-
 
     @abstractmethod
     def save_agent(self, location):

@@ -163,6 +163,8 @@ class ScaleDraw(gym.Env):
             assert ValueError("Sides value should be either 1 or 2")
         self.raw_pixels = raw_pixels
 
+        self.order = None
+
         # action space determination
         limit1, limit2 = BARLENGTH - 2 * BOXSIZE, 2 * BOXSIZE
         if not self.normalize:

@@ -46,7 +46,7 @@ def rescale_movement(original_interval, value, to_interval=(-1, +1)):
 
 
 class EnvironmentInterface(gym.Env, ABC):
-    def __init__(self, seed=None, normalize=False, rendering=False, raw_pixels=False, walls=0):
+    def __init__(self, seed=None, normalize=False, rendering=False, raw_pixels=False, walls=0, gravity=-9.80665):
         self.seed(seed)
 
         self.num_envs = 1  # for stable-baseline3
@@ -69,7 +69,7 @@ class EnvironmentInterface(gym.Env, ABC):
         self.max_timesteps = 300
 
         # set up the box2d world
-        self.world = world(gravity=(0, -9.80665), doSleep=True)
+        self.world = world(gravity=(0, gravity), doSleep=True)
         self.world_height = 30  # todo: set it up right
         self.world_width = 40
 
@@ -97,6 +97,9 @@ class EnvironmentInterface(gym.Env, ABC):
         self.normalize = normalize
         self.rendering = rendering  # should the simulation be rendered or not
         self.raw_pixels = raw_pixels  # use pixels for state or not
+
+        # if we use Dicts as observation space and want to clarify in which order we want to use the values in the state
+        self.order = None
 
         # gym action and observation spaces
         # self.action_space = gym.spaces.Box(low=np.array([-np.pi, 0]), high=np.array([np.pi, 100]))
