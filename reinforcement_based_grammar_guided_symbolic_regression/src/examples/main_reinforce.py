@@ -18,9 +18,9 @@ import numpy as np
 
 from sklearn.metrics import mean_squared_error
 
-from envs import BatchSymbolicRegressionEnv
-from algorithms import ReinforceAlgorithm
-from policies import Policy
+from reinforcement_based_grammar_guided_symbolic_regression.src.envs import BatchSymbolicRegressionEnv
+from reinforcement_based_grammar_guided_symbolic_regression.src.algorithms import ReinforceAlgorithm
+from reinforcement_based_grammar_guided_symbolic_regression.src.policies import Policy
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train Deep Symbolic Regression')

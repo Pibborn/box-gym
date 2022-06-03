@@ -30,7 +30,6 @@ google-auth-oauthlib==0.4.6
 google-pasta==0.2.0
 gplearn==0.4.1
 grpcio==1.45.0
-gym==0.23.1
 gym-notices==0.0.6
 h5py==3.6.0
 highway-env==1.5
@@ -124,3 +123,7 @@ wrapt==1.14.0
 xvfbwrapper==0.2.9
 yaspin==2.1.0
 zipp==3.8.0
+gym>=0.18.3
+pandapower>=2.4.0
+virtualenv>=20.3.1
+numba
