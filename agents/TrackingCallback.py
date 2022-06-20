@@ -66,8 +66,11 @@ class TrackingCallback(BaseCallback):
                 actions.append(action)
                 obs, reward, done, info = self.env.step(action)
                 obs = self.env.get_attr('old_state')
-                angle = obs[0][2]
-                angles.append(angle)
+                if 'Scale' in self.env.envs[0].name:
+                    angle = obs[0][2]
+                    angles.append(angle)
+                else:
+                    angles.append(np.nan)
                 if reward >= 1:
                     matches += 1
             actions = np.squeeze(np.array(actions))
@@ -75,15 +78,15 @@ class TrackingCallback(BaseCallback):
             if self.is_test:
                 wandb.log({
                     'test_success_rate': matches/self.num_eval_episodes,
-                    'test_actions_mean': wandb.Histogram(np.mean(actions, axis=0)),
-                    'test_action_var': wandb.Histogram(np.var(actions, axis=0)),
+                    'test_actions_mean': np.mean(actions, axis=0),
+                    'test_action_var': np.var(actions, axis=0),
                     'test_mean_angle': angles
                    })
             else:
                 wandb.log({
                     'train_success_rate': matches/self.num_eval_episodes,
-                    'train_actions_mean': wandb.Histogram(np.mean(actions, axis=0)),
-                    'train_action_var': wandb.Histogram(np.var(actions, axis=0)),
+                    'train_actions_mean': np.mean(actions, axis=0),
+                    'train_action_var': np.var(actions, axis=0),
                     'train_mean_angle': angles
                 })
         return True
