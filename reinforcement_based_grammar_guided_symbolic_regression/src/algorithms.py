@@ -24,6 +24,7 @@ from collections import namedtuple
 from abc import ABC, abstractmethod
 
 from utils.masking_categorical import CategoricalMasked
+from collections import Counter
 Batch = namedtuple('Batch', ('state', 'h', 'c', 'action', 'past_done', 'final_reward'))
 
 
@@ -96,10 +97,13 @@ class BaseAlgorithm(ABC):
         self.logger = {'best_expression': '',
                        'best_reward': -np.inf,
                        'i_epoch': -1}
+        self.max_reward = {'transition' : [],
+                           'max_reward': -1000}
 
     def train(self, n_epochs):
         batch, final_rewards = None, None
         for i_epoch in range(n_epochs):
+            print(f'Epoch: {i_epoch} / {n_epochs}')
             batch, final_rewards = self.sample_episodes(i_epoch=i_epoch)
             #  Early stopping
             if (1 - self.logger['best_reward']) < 1e-15:
@@ -126,6 +130,7 @@ class ReinforceAlgorithm(BaseAlgorithm):
     def __init__(self, **kwargs):
         super(ReinforceAlgorithm, self).__init__(**kwargs)
         self.writer = SummaryWriter(comment=f"Reinforce_experiment_{self.dataset}_{time.time()}")
+        self.transition_counter = Counter()
 
     @torch.inference_mode()
     def sample_episodes(self, i_epoch=0):
@@ -182,6 +187,7 @@ class ReinforceAlgorithm(BaseAlgorithm):
 
             batch = transitions
             if self.verbose:
+                [self.transition_counter.update([self.env.translations[i]]) for i in range(len(self.env.translations))]
                 batch_max = final_rewards.max()
                 if batch_max > self.logger['best_reward']:
                     i_best_reward = np.argmax(final_rewards)
@@ -217,6 +223,8 @@ class ReinforceAlgorithm(BaseAlgorithm):
         num_samples = sum(top_filter)
 
         def filter_top_epsilon(b, filter):
+            #part of the risk seeking gradient, which only compute the cost function based on the
+            # top-epsilon quantile of the rewards.
             filtered_state = {k: [] for k in self.env.observation_space.spaces.keys()}
             filtered_h_in, filtered_c_in, filtered_action, filtered_done, filtered_rewards = [], [], [], [], []
             for indices in np.where(filter)[0]:

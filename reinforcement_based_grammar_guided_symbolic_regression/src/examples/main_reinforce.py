@@ -21,11 +21,16 @@ from sklearn.metrics import mean_squared_error
 from reinforcement_based_grammar_guided_symbolic_regression.src.envs import BatchSymbolicRegressionEnv
 from reinforcement_based_grammar_guided_symbolic_regression.src.algorithms import ReinforceAlgorithm
 from reinforcement_based_grammar_guided_symbolic_regression.src.policies import Policy
+from reinforcement_based_grammar_guided_symbolic_regression.src.utils.args_parser import str2bool 
+
+#TODO use complexity of formula as metric
+            #TODO Use Depth first search zeitweise
+            #ToDo data as input
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train Deep Symbolic Regression')
     parser.add_argument('-dataset', '--d', help='Dataset name', dest="dataset", default="nguyen3")
-    parser.add_argument('-batch_size', '--b', help='Batch Size', dest="batch_size", default=1000)
+    parser.add_argument('-batch_size', '--b', help='Batch Size', dest="batch_size", default=64)
     parser.add_argument('-max_horizon', '--m', help='Max Horizon', dest="max_horizon", default=50)
     parser.add_argument('-min_horizon', '--n', help='Min Horizon', dest="min_horizon", default=4)
     parser.add_argument('-hidden_dim', '--h', help='Hidden Dim', dest="hidden_dim", default=64)
@@ -41,6 +46,8 @@ if __name__ == "__main__":
                         default="False")
     parser.add_argument('-init_type', '--i', help='Initialisation type (randint or zeros)', dest="init_type",
                         default='randint')
+    parser.add_argument("--verbose", type=str2bool, nargs='?',
+                              const=True, default=True)
 
     args = parser.parse_args()
     dataset = args.dataset
@@ -57,9 +64,10 @@ if __name__ == "__main__":
     autoencoder = args.autoencoder == "True"
     init_type = args.init_type
     print(observe_brotherhood, observe_parent, autoencoder)
+    verbose = args.verbose
 
     home_path = '../..'
-    env_kwargs = dict(grammar_file_path=f"{home_path}/grammars/nguyen_benchmark_v2.bnf",
+    env_kwargs = dict(grammar_file_path=f"{home_path}/grammars/small_grammar.bnf",
                       start_symbol="<e>",
                       train_data_path=f"{home_path}/data/supervised_learning/{dataset}/train.csv",
                       test_data_path=f"{home_path}/data/supervised_learning/{dataset}/test.csv",
@@ -83,7 +91,8 @@ if __name__ == "__main__":
                        learning_rate=learning_rate,
                        init_type=init_type,
                        reward_prediction=False,
-                       risk_eps=risk_eps)
+                       risk_eps=risk_eps,
+                       verbose=verbose)
 
     model = ReinforceAlgorithm(env_class=BatchSymbolicRegressionEnv,
                                env_kwargs=env_kwargs,
@@ -92,6 +101,8 @@ if __name__ == "__main__":
                                dataset=dataset,
                                debug=1, **algo_kwargs)
 
-    n_epochs = int(2000000/batch_size)
+    n_epochs = int(4000/batch_size)
     model.train(n_epochs=n_epochs)
+    for transition in model.transition_counter.most_common(10):
+        print(transition)
 

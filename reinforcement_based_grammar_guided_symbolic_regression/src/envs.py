@@ -296,6 +296,7 @@ class BatchSymbolicRegressionEnv(gym.Env):
         rewards = np.empty((self.batch_size,))
         for i, translation in enumerate(self.translations):
             rewards[i] = self.evaluate_on_data(i, translation)
+            rewards[i] += self.complexity_translation(translation)
         return rewards
 
     def evaluate_on_data(self, i_t, t):
@@ -362,3 +363,9 @@ class BatchSymbolicRegressionEnv(gym.Env):
                                                               self.y_train))
 
         return constants['x']
+
+    def complexity_translation(self, translation):
+        length_translation =  len(translation)
+        if length_translation == 0:
+            return -1
+        return 0.5/len(translation)
