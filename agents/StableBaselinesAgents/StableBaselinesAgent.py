@@ -87,7 +87,7 @@ class StableBaselinesAgent(Agent):
 
         self.agent = self.create_model(train_env, verbose=verbose, use_sde=sde)
         self.agent.learn(MAX_EPISODES, log_interval=PRINT_EVERY, eval_env=test_env, eval_freq=PRINT_EVERY,
-                         callback=[wandb_callback, train_success_callback, test_success_callback],
+                         callback=[wandb_callback, train_success_callback, test_success_callback] if use_scale else [wandb_callback],
                          eval_log_path='agents/temp')
 
         # try to load the model & test it
