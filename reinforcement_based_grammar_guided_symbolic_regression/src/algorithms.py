@@ -131,6 +131,7 @@ class ReinforceAlgorithm(BaseAlgorithm):
         super(ReinforceAlgorithm, self).__init__(**kwargs)
         self.writer = SummaryWriter(comment=f"Reinforce_experiment_{self.dataset}_{time.time()}")
         self.transition_counter = Counter()
+        self.transition_counter_dic = {}
 
     @torch.inference_mode()
     def sample_episodes(self, i_epoch=0):
@@ -142,6 +143,7 @@ class ReinforceAlgorithm(BaseAlgorithm):
             c_in = self.init_type((1, self.batch_size, self.env.hidden_size))
 
             state = self.env.reset()
+            print(f'target_label {self.env.target_label}')
             past_done = torch.zeros((self.batch_size, 1))
             horizon = torch.ones((self.batch_size, 1))
 
@@ -187,7 +189,8 @@ class ReinforceAlgorithm(BaseAlgorithm):
 
             batch = transitions
             if self.verbose:
-                [self.transition_counter.update([self.env.translations[i]]) for i in range(len(self.env.translations))]
+
+                self.update_transition_counter_dic()
                 batch_max = final_rewards.max()
                 if batch_max > self.logger['best_reward']:
                     i_best_reward = np.argmax(final_rewards)
@@ -216,6 +219,13 @@ class ReinforceAlgorithm(BaseAlgorithm):
                         self.writer.flush()
 
         return batch, final_rewards
+
+    def update_transition_counter_dic(self):
+        target_label = self.env.target_label
+        if target_label not in self.transition_counter_dic.keys():
+            self.transition_counter_dic[target_label] = Counter()
+        counter_target_label = self.transition_counter_dic[target_label]
+        [counter_target_label.update([self.env.translations[i]]) for i in range(len(self.env.translations))]
 
     def optimize_model(self, batch, final_rewards, i_epoch):
         top_epsilon_quantile = np.quantile(final_rewards, 1 - self.risk_eps)

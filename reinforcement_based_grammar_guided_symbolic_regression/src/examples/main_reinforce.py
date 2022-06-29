@@ -103,6 +103,8 @@ if __name__ == "__main__":
 
     n_epochs = int(4000/batch_size)
     model.train(n_epochs=n_epochs)
-    for transition in model.transition_counter.most_common(10):
-        print(transition)
+    for key in model.transition_counter_dic.keys():
+        print(f'Most frequent equations for {model.env.feature_names[key]}')
+        for transition in model.transition_counter_dic[key].most_common(10):
+            print(transition)
 
