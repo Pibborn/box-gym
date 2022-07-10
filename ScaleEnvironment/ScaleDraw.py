@@ -252,7 +252,7 @@ class ScaleDraw(gym.Env):
 
         :param density: density of the box (should be in range of the interval)
         :type density: float
-        :param low: the minimum value for the density
+        :param low: the minimum value for the d ensity
         :type low: float
         :param high: the maximum value for the density
         :type high: float

@@ -9,7 +9,12 @@ from stable_baselines3 import SAC
 import run_agent
 from ScaleEnvironment.ScaleExperiment import rescale_movement
 from agents.StableBaselinesAgents.SACAgent import SACAgent
+import wandb
+from wandb.integration.sb3 import WandbCallback
+from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+from agents.TrackingCallback import TrackingCallback
+from stable_baselines3.common.evaluation import evaluate_policy
 
 
 # Scale functions
@@ -21,10 +26,18 @@ def writeScaleData(env, agent, config, box_number=2):
     df_dict.update({f'Boxsize {i + 1}': pd.Series(dtype='float') for i in range(box_number)})
     df = pd.DataFrame(df_dict)
 
+    test_rewards = []
     test_matches = 0
-    env.seed(1080)
+    N_TRIALS = 100
+    # env.seed(1080)
     test_env = DummyVecEnv([lambda: env])
     # test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
+
+    wandb.init(project="box-gym", entity=args.entity, config=config, sync_tensorboard=True)
+
+    wandb_callback = WandbCallback(gradient_save_freq=config.printevery,
+                                   model_save_path="results/temp",
+                                   verbose=0)
 
     for episode in range(1, config.episodes + 1):
         state = np.array(test_env.reset())  # torch.tensor(env.reset())
@@ -57,11 +70,16 @@ def writeScaleData(env, agent, config, box_number=2):
             test_matches += 1
             # print(state)
             # df2 = pd.DataFrame([[]], columns=list('AB'))
+        test_rewards.append(R)
+        mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
+        wandb.log({'test_rewards': mean_test_rewards})
 
     print(
         f"Success rate of test episodes: {test_matches}/{config.episodes}={(test_matches / config.episodes * 100):,.2f}%")
     # print(df)
     df.to_csv(f"savedagents/extracted_data/{config.path}.csv")
+
+    wandb.finish()
     return
 
 
@@ -85,13 +103,18 @@ def readScaleData(env, config):
 
 # Basketball functions
 def writeBasketballData(env, agent, config, box_number=2):
-    # create DataFrame: first 1/3 columns are positions, the next 1/3 densities and the rest the sizes of the boxes
-    df_dict = {}
-    df_dict.update({f'Position {i + 1}': pd.Series(dtype='float') for i in range(box_number)})
-    df_dict.update({f'Density {i + 1}': pd.Series(dtype='float') for i in range(box_number)})
-    df_dict.update({f'Boxsize {i + 1}': pd.Series(dtype='float') for i in range(box_number)})
-    # position1, position2, angle, velocity, self.radius, self.density
+    # create DataFrame for Basketball
     df = pd.DataFrame({'x-Position Ball': pd.Series(dtype='float'),
+                       'y-Position Ball': pd.Series(dtype='float'),
+                       'Force vector x': pd.Series(dtype='float'),
+                       'Force vector y': pd.Series(dtype='float'),
+                       'Radius': pd.Series(dtype='float'),
+                       'Density': pd.Series(dtype='float'),
+                       'x-Position Basket': pd.Series(dtype='float'),
+                       'y-Position Basket': pd.Series(dtype='float'),
+                       'Radius Basket': pd.Series(dtype='float'),
+                       })
+    """df = pd.DataFrame({'x-Position Ball': pd.Series(dtype='float'),
                        'y-Position Ball': pd.Series(dtype='float'),
                        'Angle': pd.Series(dtype='float'),
                        'Velocity': pd.Series(dtype='float'),
@@ -100,7 +123,7 @@ def writeBasketballData(env, agent, config, box_number=2):
                        'x-Position Basket': pd.Series(dtype='float'),
                        'y-Position Basket': pd.Series(dtype='float'),
                        'Radius Basket': pd.Series(dtype='float'),
-                       })
+                       })"""
 
     test_matches = 0
     env.seed(1080)
@@ -108,7 +131,10 @@ def writeBasketballData(env, agent, config, box_number=2):
     # test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
 
     for episode in range(1, config.episodes + 1):
-        state = np.array(test_env.reset())  # torch.tensor(env.reset())
+        state = test_env.reset()  # torch.tensor(env.reset())
+        start_position_x, start_position_y = state[0][0], state[0][1]
+        print(start_position_x, start_position_y)
+
         R = 0  # return (sum of rewards)
         t = 0
         done = False
@@ -122,10 +148,16 @@ def writeBasketballData(env, agent, config, box_number=2):
                 break
         if R >= 100:
             if config.normalize:
-                state = rescale_movement([np.array([0, 0, -1, -1, 0, 0, 0, 0, 0]), np.array([1 for _ in range(9)])],
+                """state = rescale_movement([np.array([0, 0, -1, -1, 0, 0, 0, 0, 0]), np.array([1 for _ in range(9)])],
                                          state,
                                          [np.array([0, 0, - np.pi, -10, 0.5, 4, 0, 0, 0.5]),
                                           np.array([env.world_width, env.world_height, np.pi, 10, 1.5, 6,
+                                                    env.world_width, env.world_height, 3])])"""
+                #rescaled_action = rescale_movement([0, 1], action, [0, 15])
+                state = rescale_movement([np.array([0, 0, -1, -1, 0, 0, 0, 0, 0]), np.array([1 for _ in range(9)])],
+                                         np.concatenate((np.array([start_position_x, start_position_y]), action[0],  state[4:])),
+                                         [np.array([0, 0, 0, 0, 0.5, 4, 0, 0, 0.5]),
+                                          np.array([env.world_width, env.world_height, 15, 15, 1.5, 6,
                                                     env.world_width, env.world_height, 3])])
 
             df.loc[test_matches] = np.array(state)
@@ -141,20 +173,7 @@ def writeBasketballData(env, agent, config, box_number=2):
 
 
 def readBasketballData(env, config):
-    df = pd.read_csv(f"savedagents/extracted_data/{config.path}.csv")
-    df = df.drop(df.columns[0], axis=1)
-    df = df.reset_index()  # make sure indexes pair with number of rows
-    env.reset()
-    for index, row in df.iterrows():
-        env.reset()
-        pos1, pos2 = row['Position 1'], row['Position 2']
-        den1, den2 = row['Density 1'], row['Density 2']
-        size1, size2 = row['Boxsize 1'], row['Boxsize 2']
-        env.deleteBox(env.boxA)
-        env.deleteBox(env.boxB)
-        env.boxA = env.createBox(pos_x=pos1, density=den1, boxsize=size1)
-        env.boxB = env.createBox(pos_x=pos2, density=den2, boxsize=size2)
-        env.step(None)
+    # todo
     return
 
 
@@ -164,7 +183,9 @@ if __name__ == '__main__':
     parser.add_argument('--envname', type=str, default='scale_single')
     parser.add_argument('--agent', type=str, default='sac')
     parser.add_argument('--episodes', type=int, default=10000)
+    parser.add_argument('--printevery', type=int, default=500)
     parser.add_argument('--trials', type=int, default=100)
+    parser.add_argument('--entity', type=str, default='jgu-wandb')
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--random_densities', action='store_true')
     parser.add_argument('--random_boxsizes', action='store_true')

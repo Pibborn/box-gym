@@ -5,16 +5,16 @@ using DataFrames
 
 SCALE = 1
 BASKETBALL = 2
-mode = BASKETBALL
+mode = SCALE
 
-file_name = "resultsBasketbalL"
+file_name = "results_easy"
 df = DataFrame(CSV.File("savedagents/extracted_data/$file_name.csv"))
 df = select!(df, Not("Column1")) # cut the first column
 
 if (mode == SCALE)
-    random_boxsizes = true
+    random_boxsizes = false
     actions = 1
-    placed = 2
+    placed = 1
     boxes = actions + placed
 
     if (random_boxsizes)
@@ -41,7 +41,8 @@ if (mode == SCALE)
     end
     X = Matrix(df[:, columns])
     X = transpose(X)
-    y = df."Position 3"
+    print(columns)
+    y = df."Position 2" # todo: don't hardcode it
 elseif (mode==BASKETBALL)
    """df = pd.DataFrame({'x-Position Ball': pd.Series(dtype='float'),
                        'y-Position Ball': pd.Series(dtype='float'),
@@ -58,13 +59,14 @@ elseif (mode==BASKETBALL)
 
    # new version
    #X = Matrix(df[:, ["x-Position Ball", "y-Position Ball", "Radius", "Density", "x-Position Basket", "y-Position Basket", "Radius Basket"]])
-   X = Matrix(df[:, ["x-Position Ball", "y-Position Ball", "Force vector x", "Radius", "Density", "x-Position Basket", "y-Position Basket", "Radius Basket"]])
+   X = Matrix(df[:, ["x-Position Ball", "y-Position Ball", "Radius", "Density", "x-Position Basket", "y-Position Basket", "Radius Basket"]])
    X = transpose(X)
 
    # old
    # y = df."x-Position Ball"
    # new
    # y = df[:, ["Force vector x", "Force vector y"]]
+   y = df."Force vector x"
    y = df."Force vector y"
 end
 
@@ -96,6 +98,9 @@ for member in dominating
     println("$(size)\t$(score)\t$(string)")
 end
 
+if mode == BASKETBALL
+    println("x1: x-Position Ball, x2: y-Position Ball, x3: Radius, x4: Density, x5: x-Position Basket, x6: y-Position Basket, x7: Radius Basket")
+end
 #df = DataFrame(CSV.File("savedagents/results.csv"))
 """
 X = randn(Float32, 5, 100)

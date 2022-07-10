@@ -78,16 +78,14 @@ class StableBaselinesAgent(Agent):
         wandb_callback = WandbCallback(gradient_save_freq=config.printevery,
                                        model_save_path="results/temp",
                                        verbose=0)
-        use_scale = config.envname in {'scale_draw', 'scale', 'scale_experiment', 'scale_single'} # todo: TrackingCallback class for other envs
-        if use_scale:
-            train_success_callback = TrackingCallback(train_env, printfreq=PRINT_EVERY, num_eval_episodes=N_TRIALS,
-                                                      is_test=False)
-            test_success_callback = TrackingCallback(test_env, printfreq=PRINT_EVERY, num_eval_episodes=N_TRIALS,
-                                                     is_test=True)
+        train_success_callback = TrackingCallback(train_env, printfreq=PRINT_EVERY, num_eval_episodes=N_TRIALS,
+                                                  is_test=False)
+        test_success_callback = TrackingCallback(test_env, printfreq=PRINT_EVERY, num_eval_episodes=N_TRIALS,
+                                                 is_test=True)
 
         self.agent = self.create_model(train_env, verbose=verbose, use_sde=sde)
         self.agent.learn(MAX_EPISODES, log_interval=PRINT_EVERY, eval_env=test_env, eval_freq=PRINT_EVERY,
-                         callback=[wandb_callback, train_success_callback, test_success_callback] if use_scale else [wandb_callback],
+                         callback=[wandb_callback, train_success_callback, test_success_callback],
                          eval_log_path='agents/temp')
 
         # try to load the model & test it

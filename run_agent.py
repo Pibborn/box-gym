@@ -206,6 +206,7 @@ if __name__ == '__main__':
         vdisplay = Xvfb()
         vdisplay.start()
 
+    wandb.tensorboard.patch(root_logdir="<logging_directory>")
     wandb.init(project="box-gym", entity=args.entity, config=args, sync_tensorboard=True)
 
     if not args.test:  # train + test new agent
@@ -306,3 +307,5 @@ if __name__ == '__main__':
         # mean_test_rewards = agent.evaluate_model(test_env=test_env, config=args)
     end_time = time.time()
     print(end_time - start_time)
+
+    wandb.finish()

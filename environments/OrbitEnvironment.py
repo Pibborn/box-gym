@@ -1,7 +1,9 @@
+import math
 from math import pi, sin, cos
 from time import sleep
 
 import gym
+from cv2.cv2 import normalize
 from gym.spaces import Box, Dict
 import pygame
 from Box2D import b2Vec2
@@ -62,7 +64,7 @@ class Satellite:
             position=(self.x, self.y),
             fixtures=fixtureDef(shape=circleShape(radius=self.radius),
                                 density=self.density, friction=0.4),
-            linearVelocity=self.force_vector,
+            #linearVelocity=self.force_vector,
             userData=None,
         )
         return self.planet
@@ -149,6 +151,38 @@ class OrbitEnvironment(EnvironmentInterface):
     def success(self): #todo
         return False
 
+    def step(self, action=None):
+
+        """
+        b2Body* bk = bodies[k];
+        b2Vec2 pk = bk->GetWorldCenter();
+        float mk = bk->GetMass();
+
+        b2Vec2 delta = pk - pi;
+        float r = delta.Length();
+        float force = G * mi * mk / (r*r);
+
+        delta.Normalize();
+        bi->ApplyForce(  force * delta, pi );
+        bk->ApplyForce( -force * delta, pk );
+        """
+        delta = self.satellite.satellite.position - self.planet.planet.position
+        r = math.sqrt(delta[0] ** 2 + delta[1] ** 2)#b2Vec2.length(delta)
+        force = self.planet.gravity * self.planet.planet.mass * self.satellite.satellite.mass / (r*r)
+
+        delta = delta / r   # normalize the vector to unit vector
+        #self.planet.planet.ApplyForce( force * delta, self.planet.planet.position, False)
+        # self.satellite.satellite.ApplyForce( - force * delta, self.satellite.satellite.position, False)
+        self.satellite.satellite.ApplyForceToCenter(force*delta, True)
+        print(force)
+        """gravityDirection = self.planet.planet.position - self.satellite.satellite.position
+        #gravityDirection = b2Vec2.Normalize(self.planet.planet.position - self.satellite.satellite.position)
+        bodyGravity = self.satellite.satellite.mass * gravityDirection * 100000.0
+
+        self.satellite.satellite.ApplyForce(-bodyGravity, self.satellite.satellite.position, True)"""
+
+        return super().step(action)
+
     def getReward(self): #todo
         return 10
 
@@ -161,6 +195,7 @@ class OrbitEnvironment(EnvironmentInterface):
         radius = self.satellite.radius
         del self.satellite
         self.satellite = Satellite(self.world, x, y, radius=radius, density=density, force_vector=(delta_x, delta_y))
+        #self.satellite = Satellite(self.world, 10, 10, radius=radius, density=density)
         self.world = self.satellite.get_world()
         # self.satellite.satellite.linearVelocity = b2Vec2(delta_x, delta_y)
         pass
@@ -198,9 +233,9 @@ class OrbitEnvironment(EnvironmentInterface):
             planet_y = self.np_random.uniform(0.3 * self.world_height, 0.7 * self.world_height)
         else:
             planet_x, planet_y = self.world_width * 0.5, self.world_height * 0.5
-        planet_gravity = self.np_random.uniform(5.0, 20.) if self.random_gravity else 9.81
+        planet_gravity = 500 # self.np_random.uniform(5.0, 20.) if self.random_gravity else 9.81
         planet_radius = 3.0  # self.np_random.uniform(3., 5) if self.random_planet_size else 3.0
-        planet_density = 5.0  # self.np_random.uniform(4, 6) if self.random_planet_density else 5.0
+        planet_density = 1000.0  # self.np_random.uniform(4, 6) if self.random_planet_density else 5.0
         self.planet = Planet(self.world, x=planet_x, y=planet_y, gravity=planet_gravity, radius=planet_radius,
                              density=planet_density)
         self.world = self.planet.get_world()
@@ -210,6 +245,8 @@ class OrbitEnvironment(EnvironmentInterface):
         starting_angle = self.np_random.uniform(0, 2 * pi) if self.random_satellite_position else 0
         satellite_x = planet_x + (planet_radius + satellite_radius) * sin(starting_angle)
         satellite_y = planet_y + (planet_radius + satellite_radius) * cos(starting_angle)
+
+        satellite_y, satellite_x = 15, 15
         satellite_density = self.np_random.uniform(0.5, 2.0) if self.random_satellite_density else 1.0
         self.satellite = Satellite(self.world, x=satellite_x, y=satellite_y, radius=satellite_radius,
                                    density=satellite_density, force_vector=(0, 0))

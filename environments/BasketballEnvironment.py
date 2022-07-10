@@ -139,6 +139,11 @@ class BasketballEnvironment(EnvironmentInterface):
                                      high=np.array([self.world_width, self.world_height, np.pi, 10, 1.5, 6,
                                                     self.world_width, self.world_height, 3] if not self.normalize
                                                    else [1 for _ in range(9)]))
+        self.observation_space = Box(low=np.array([0, 0, - np.pi, -10, 0.5, 4, 0, 0, 0.5] if not self.normalize
+                                                  else [0, 0, -1, -1, 0, 0, 0, 0, 0]),
+                                     high=np.array([self.world_width, self.world_height, np.pi, 10, 1.5, 6,
+                                                    self.world_width, self.world_height, 3] if not self.normalize
+                                                   else [1 for _ in range(9)]))
 
         self.reset()
 
