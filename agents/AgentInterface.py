@@ -114,8 +114,8 @@ class Agent(ABC, torch.nn.Module):
 
                         :type env: gym.Env:
                         :param env: test environment
-                        :rtype: float
-                        :returns: reward from episode
+                        :rtype: tuple[float, list]
+                        :returns: reward from episode and the state
                 """
         raise NotImplementedError("Evaluate Function not implemented")
 

@@ -1,3 +1,5 @@
+import time
+
 import stable_baselines3
 from gym import spaces
 import gym
@@ -12,8 +14,14 @@ from stable_baselines3.common.vec_env import VecVideoRecorder
 from agents.TrackingCallback import TrackingCallback
 from stable_baselines3.common.evaluation import evaluate_policy
 
+from DataExtraction.Extraction import init_Scale, init_Basketball, init_Orbit
+from DataExtraction.Extraction import update_Scale_table, update_Basketball_table, update_Orbit_table
+from DataExtraction.WandB import wandbCSVTracking
 from agents.AgentInterface import Agent
 
+SCALE = 0
+BASKETBALL = 1
+ORBIT = 2
 
 class StableBaselinesAgent(Agent):
     def __init__(self, input_dim, output_dim, policy='MlpPolicy'):
@@ -41,7 +49,7 @@ class StableBaselinesAgent(Agent):
             reset = t == 200
             if done or reset:
                 break
-        return R
+        return R, state, action
 
     def create_model(self, train_env, verbose=1, use_sde=False):
         """Create the model with the given policy in the environment
@@ -84,17 +92,23 @@ class StableBaselinesAgent(Agent):
                                                  is_test=True)
 
         self.agent = self.create_model(train_env, verbose=verbose, use_sde=sde)
-        self.agent.learn(MAX_EPISODES, log_interval=PRINT_EVERY, eval_env=test_env, eval_freq=PRINT_EVERY,
-                         callback=[wandb_callback, train_success_callback, test_success_callback],
-                         eval_log_path='agents/temp')
+        if not config.envname.lower() == "basketball":
+            self.agent.learn(MAX_EPISODES, log_interval=PRINT_EVERY, eval_env=test_env, eval_freq=PRINT_EVERY,
+                             callback=[wandb_callback, train_success_callback, test_success_callback],  # todo: fix for Basketball
+                             # callback=wandb_callback,
+                             eval_log_path='agents/temp')
+        else:
+            self.agent.learn(MAX_EPISODES, log_interval=PRINT_EVERY, eval_env=test_env, eval_freq=PRINT_EVERY,
+                             callback=wandb_callback,
+                             eval_log_path='agents/temp')
 
         # try to load the model & test it
         """self.agent.save("SAC_Model_test")   # location is just a placeholder for now, could be replaced with extra parameter
         del self.agent
         self.agent = SAC.load("SAC_Model_test")"""
-        self.test_loop(test_env, config=config, verbose=verbose)
+        test_rewards, df = self.test_loop(test_env, config=config, verbose=verbose)
         # self.evaluate_model(test_env=test_env, config=config)
-        return
+        return test_rewards, df
 
     def save_agent(self, location):
         self.agent.save_agent(location)
@@ -128,6 +142,20 @@ class StableBaselinesAgent(Agent):
         N_TRIALS = config.trials
         REWARD_THRESHOLD = config.threshold
         PRINT_EVERY = config.printevery
+
+        if config.envname.lower() in {"scale", "scale_single", "scale_exp", "scale_draw"}:
+            mode = 0
+            box_number = config.placed + config.actions  # count number of boxes
+            df = init_Scale(box_number=box_number, save_boxsize=True)
+        elif config.envname.lower() == "basketball":
+            mode = 1
+            df = init_Basketball()  # todo
+        elif config.envname.lower() == "orbit":
+            mode = 2
+            df = init_Orbit()  # todo
+        else:
+            raise NotImplementedError()
+
         test_rewards = []
         test_matches = 0
         # action_size = self.output_dim  # train_env.action_space.low.size
@@ -147,8 +175,19 @@ class StableBaselinesAgent(Agent):
         test_env.reset()"""
 
         for episode in range(1, MAX_EPISODES + 1):
-            test_reward = self.evaluate(env=test_env)
+            test_reward, state, action = self.evaluate(env=test_env)
+            start_position_x, start_position_y = state[0][0], state[0][1]
+            state = state[0]
             if test_reward >= 1:
+                if mode == SCALE:
+                    df = update_Scale_table(df=df, state=state, config=config, box_number=box_number,
+                                            index=test_matches)
+                elif mode == BASKETBALL:
+                    df = update_Basketball_table(df=df, state=state, env=test_env, config=config,
+                                                 start_position_x=start_position_x, start_position_y=start_position_y,
+                                                 action=action, index=test_matches)
+                elif mode == ORBIT:
+                    df = update_Orbit_table(df=df)  # todo
                 test_matches += 1
             test_rewards.append(test_reward)
             mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
@@ -167,4 +206,4 @@ class StableBaselinesAgent(Agent):
         test_success_rate = test_matches / MAX_EPISODES
         wandb.log({'test_success_rate': test_success_rate})
         #test_env.close()
-        return test_rewards
+        return test_rewards, df

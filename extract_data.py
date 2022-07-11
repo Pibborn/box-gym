@@ -5,47 +5,85 @@ import gym.spaces
 import numpy as np
 import pandas as pd
 
+from DataExtraction.Extraction import init_Scale, init_Basketball, init_Orbit
+from DataExtraction.Extraction import update_Scale_table, update_Basketball_table, update_Orbit_table
+
 from stable_baselines3 import SAC
 import run_agent
 from ScaleEnvironment.ScaleExperiment import rescale_movement
 from agents.StableBaselinesAgents.SACAgent import SACAgent
 import wandb
-from wandb.integration.sb3 import WandbCallback
-from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from agents.TrackingCallback import TrackingCallback
 from stable_baselines3.common.evaluation import evaluate_policy
+from DataExtraction.WandB import wandbCSVTracking
 
 SCALE = 0
 BASKETBALL = 1
 ORBIT = 2
 
 
-def wandbCSVTracking(run, csv_path, config=None, mode=SCALE):
-    mode_string = ["scale", "basketball", "orbit"][mode]
-    # ----------- Tracking of the CSV File ---------------------------------
-    # Read our CSV into a new DataFrame
-    new_dataframe = pd.read_csv(csv_path)
+def writeData(env, agent, config, mode=SCALE):
+    if mode == SCALE:
+        box_number = config.placed + config.actions  # count number of boxes
+        df = init_Scale(box_number=box_number, save_boxsize=True)
+    elif mode == BASKETBALL:
+        df = init_Basketball()  # todo
+    elif mode == ORBIT:
+        df = init_Orbit()  # todo
+    else:
+        raise NotImplementedError()
 
-    # Convert the DataFrame into a W&B Table
-    table = wandb.Table(dataframe=new_dataframe)
+    test_rewards = []
+    test_matches = 0
+    N_TRIALS = 100
 
-    # Add the table to an Artifact to increase the row limit to 200000 and make it easier to reuse!
-    table_artifact = wandb.Artifact(f"{mode_string}_artifact", type="dataset")
-    table_artifact.add(table, f"{mode_string}_table")
-
-    # We will also log the raw csv file within an artifact to preserve our data
-    table_artifact.add_file(csv_path)
+    test_env = DummyVecEnv([lambda: env])
+    # test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
 
     # Start a W&B run to log data
-    # run = wandb.init(project="box-gym", entity=args.entity, config=config, sync_tensorboard=True)
+    run = wandb.init(project="box-gym", entity=config.entity, config=config, sync_tensorboard=True)
 
-    # Log the table to visualize with a run...
-    run.log({f"{mode_string}": table})
+    # wandb_callback = WandbCallback(gradient_save_freq=config.printevery, model_save_path="results/temp", verbose=0)
 
-    # and Log as an Artifact to increase the available row limit!
-    run.log_artifact(table_artifact)
-    return run
+    for episode in range(1, config.episodes + 1):
+        state = np.array(test_env.reset())  # torch.tensor(env.reset())
+        R = 0  # return (sum of rewards)
+        t = 0
+        done = False
+        while not done:
+            action, states = agent.agent.predict(state, deterministic=True)
+            state, reward, done, info = env.step(action[0])
+            R += reward
+            t += 1
+            reset = t == 200
+            if done or reset:
+                break
+        if R > 1:
+            if mode == SCALE:
+                df = update_Scale_table(df=df, state=state, config=config, box_number=box_number, index=test_matches)
+            elif mode == BASKETBALL:
+                df = update_Basketball_table(df=df)  # todo
+            elif mode == ORBIT:
+                df = update_Orbit_table(df=df)  # todo
+            test_matches += 1
+
+        test_rewards.append(R)
+        mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
+        # run.log({'test_rewards': mean_test_rewards})
+
+    print(
+        f"Success rate of test episodes: {test_matches}/{config.episodes}={(test_matches / config.episodes * 100):,.2f}%")
+    # print(df)
+    df.to_csv(f"savedagents/extracted_data/{config.path}.csv")
+
+    # Do the tracking of the CSV File
+    run = wandbCSVTracking(run, f"savedagents/extracted_data/{config.path}.csv", config)
+
+    # Finish the run (useful in notebooks)
+    run.finish()
+    return
+
 
 # Scale functions
 def writeScaleData(env, agent, config, box_number=2):
@@ -135,7 +173,7 @@ def readScaleData(env, config):
 
 
 # Basketball functions
-def writeBasketballData(env, agent, config, box_number=2):
+def writeBasketballData(env, agent, config):
     # create DataFrame for Basketball
     df = pd.DataFrame({'x-Position Ball': pd.Series(dtype='float'),
                        'y-Position Ball': pd.Series(dtype='float'),
@@ -159,7 +197,7 @@ def writeBasketballData(env, agent, config, box_number=2):
                        })"""
 
     test_matches = 0
-    env.seed(1080)
+    # env.seed(1080)
     test_env = DummyVecEnv([lambda: env])
     # test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
 
@@ -186,9 +224,10 @@ def writeBasketballData(env, agent, config, box_number=2):
                                          [np.array([0, 0, - np.pi, -10, 0.5, 4, 0, 0, 0.5]),
                                           np.array([env.world_width, env.world_height, np.pi, 10, 1.5, 6,
                                                     env.world_width, env.world_height, 3])])"""
-                #rescaled_action = rescale_movement([0, 1], action, [0, 15])
+                # rescaled_action = rescale_movement([0, 1], action, [0, 15])
                 state = rescale_movement([np.array([0, 0, -1, -1, 0, 0, 0, 0, 0]), np.array([1 for _ in range(9)])],
-                                         np.concatenate((np.array([start_position_x, start_position_y]), action[0],  state[4:])),
+                                         np.concatenate(
+                                             (np.array([start_position_x, start_position_y]), action[0], state[4:])),
                                          [np.array([0, 0, 0, 0, 0.5, 4, 0, 0, 0.5]),
                                           np.array([env.world_width, env.world_height, 15, 15, 1.5, 6,
                                                     env.world_width, env.world_height, 3])])
@@ -268,7 +307,7 @@ if __name__ == '__main__':
             readBasketballData(env=test_env, config=args)
     else:
         if args.mode == 1:
-            writeScaleData(env=test_env, agent=agent, config=args, box_number=args.placed + args.actions)
-
+            # writeScaleData(env=test_env, agent=agent, config=args, box_number=args.placed + args.actions)
+            writeData(env=test_env, agent=agent, config=args, mode=SCALE)
         else:
             readScaleData(env=test_env, config=args, box_number=args.placed + args.actions)
