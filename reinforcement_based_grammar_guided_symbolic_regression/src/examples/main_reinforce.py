@@ -21,11 +21,12 @@ from sklearn.metrics import mean_squared_error
 from reinforcement_based_grammar_guided_symbolic_regression.src.envs import BatchSymbolicRegressionEnv
 from reinforcement_based_grammar_guided_symbolic_regression.src.algorithms import ReinforceAlgorithm
 from reinforcement_based_grammar_guided_symbolic_regression.src.policies import Policy
-from reinforcement_based_grammar_guided_symbolic_regression.src.utils.args_parser import str2bool 
+from reinforcement_based_grammar_guided_symbolic_regression.src.utils.args_parser import str2bool
+from reinforcement_based_grammar_guided_symbolic_regression.src.utils.process_data import insert_variable_names
 
-#TODO use complexity of formula as metric
-            #TODO Use Depth first search zeitweise
-            #ToDo data as input
+# TODO use complexity of formula as metric
+# TODO Use Depth first search zeitweise
+# ToDo data as input
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train Deep Symbolic Regression')
@@ -47,7 +48,7 @@ if __name__ == "__main__":
     parser.add_argument('-init_type', '--i', help='Initialisation type (randint or zeros)', dest="init_type",
                         default='randint')
     parser.add_argument("--verbose", type=str2bool, nargs='?',
-                              const=True, default=True)
+                        const=True, default=True)
 
     args = parser.parse_args()
     dataset = args.dataset
@@ -101,10 +102,17 @@ if __name__ == "__main__":
                                dataset=dataset,
                                debug=1, **algo_kwargs)
 
-    n_epochs = int(4000/batch_size)
+    n_epochs = int(40000 / batch_size)
     model.train(n_epochs=n_epochs)
     for key in model.transition_counter_dic.keys():
         print(f'Most frequent equations for {model.env.feature_names[key]}')
         for transition in model.transition_counter_dic[key].most_common(10):
             print(transition)
 
+    for key in model.transition_counter_dic.keys():
+        equation = insert_variable_names(
+            equation=model.logger[key]['best_expression'],
+            feature_names=model.env.dataset[key]['columns_train'],
+        )
+        print(f"Best equation for {model.env.dataset[key]['columns_label']} {equation}")
+        print(f"with reward {model.logger[key]['best_reward']}")

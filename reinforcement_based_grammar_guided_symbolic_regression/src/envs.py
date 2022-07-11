@@ -22,9 +22,9 @@ from sklearn.linear_model import LinearRegression, Lasso
 import gym
 import gym.spaces as spaces
 
-from utils.grammar_parser import ProbabilisticGrammar
-from utils.constraints import Constraints
-from utils.process_data import to_categorical
+from reinforcement_based_grammar_guided_symbolic_regression.src.utils.grammar_parser import ProbabilisticGrammar
+from reinforcement_based_grammar_guided_symbolic_regression.src.utils.constraints import Constraints
+from reinforcement_based_grammar_guided_symbolic_regression.src.utils.process_data import to_categorical
 
 
 @jit(nopython=True)  # , float32(float32, float32)
@@ -78,17 +78,20 @@ class BatchSymbolicRegressionEnv(gym.Env):
         target = 0
         self.dataset = {}
         while not prepared_all_dataset:
-            columns_train, X_train, X_test, y_train, y_test, scaler = \
+            columns_train, columns_label, X_train, X_test, y_train, y_test, scaler = \
                 self.prepare_data_set(normalization_type, normalize, target, test_data_path, train_data_path)
             self.dataset[target] = {}
             self.dataset[target]['X_train'] = X_train
             self.dataset[target]['X_test'] = X_test
             self.dataset[target]['y_train'] = y_train
             self.dataset[target]['y_test'] = y_test
+            self.dataset[target]['columns_label'] = columns_label
+            self.dataset[target]['columns_train'] = columns_train
+
 
             if target == X_train.shape[1]:
                 prepared_all_dataset = True
-                self.num_features = X_train.shape[1]
+                self.num_features = X_train.shape[1] + y_train.shape[1]
             else:
                 target += 1
 
@@ -160,8 +163,8 @@ class BatchSymbolicRegressionEnv(gym.Env):
                 X_train = pd.read_feather(train_data_path).iloc[:20000]
                 X_test = pd.read_feather(test_data_path).iloc[:20000]
             elif ".csv" in train_data_path:
-                X_train = pd.read_csv(train_data_path).iloc[:20000]
-                X_test = pd.read_csv(test_data_path).iloc[:20000]
+                X_train = pd.read_csv(train_data_path, index_col=0).iloc[:20000]
+                X_test = pd.read_csv(test_data_path, index_col=0).iloc[:20000]
             if normalize:
                 if normalization_type == 'standard_scaler':
                     scaler = StandardScaler()
@@ -174,9 +177,9 @@ class BatchSymbolicRegressionEnv(gym.Env):
                     X_test = (X_test - mini) / (maxi - mini)
             self.feature_names = X_train.columns
             target_feature = X_train.columns[target_label]
-            y_train = X_train[target_feature]
+            y_train = X_train[target_feature].to_frame()
             X_train.drop(columns=[target_feature], inplace=True)
-            y_test = X_test[target_feature]
+            y_test = X_test[target_feature].to_frame()
             X_test.drop(columns=[target_feature], inplace=True)
         else:
             if ".feather" in train_data_path:
@@ -189,9 +192,10 @@ class BatchSymbolicRegressionEnv(gym.Env):
             y = x[target_label]
             x = x.drop(columns=[target_label], inplace=True)
             X_train, X_test, y_train, y_test = train_test_split(x, y)
-        columns_train = X_train.columns
+        columns_train = X_train.columns.to_list()
+        columns_label = y_train.columns.to_list()
 
-        return columns_train, X_train, X_test, y_train, y_test, scaler
+        return columns_train, columns_label, X_train, X_test, y_train, y_test, scaler
 
     def reset(self):
 
@@ -226,7 +230,7 @@ class BatchSymbolicRegressionEnv(gym.Env):
 
         self.target_label = np.random.randint(low=0, high=self.num_features)
         self.target_label_one_hot = np.zeros((self.batch_size, 1, self.num_features))
-        self.target_label_one_hot[:, :] = to_categorical(self.target_label, self.num_features)
+        self.target_label_one_hot[:, :] = to_categorical(self.target_label, num_classes=self.num_features)
         observation['target_label'] = self.target_label_one_hot
         return observation
 

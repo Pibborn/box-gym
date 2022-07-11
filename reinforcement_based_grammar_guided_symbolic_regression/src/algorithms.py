@@ -13,11 +13,13 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 import torch
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
+
 torch.autograd.set_detect_anomaly(True)
 
 from collections import namedtuple
@@ -25,6 +27,7 @@ from abc import ABC, abstractmethod
 
 from utils.masking_categorical import CategoricalMasked
 from collections import Counter
+
 Batch = namedtuple('Batch', ('state', 'h', 'c', 'action', 'past_done', 'final_reward'))
 
 
@@ -67,11 +70,6 @@ class BaseAlgorithm(ABC):
         self.dataset = dataset
         self.env = env_class(**env_kwargs)
 
-        # Define logs
-        self.logger = dict(best_reward=-1,
-                           best_expression=None,
-                           nb_invalid=0,
-                           i_best_episode=0)
         self.i_episode = 0
         self.verbose = verbose
         self.debug = debug
@@ -94,11 +92,13 @@ class BaseAlgorithm(ABC):
         self.init_type = init_functions[init_type]
 
         # Logs
-        self.logger = {'best_expression': '',
-                       'best_reward': -np.inf,
-                       'i_epoch': -1}
-        self.max_reward = {'transition' : [],
-                           'max_reward': -1000}
+        self.logger = {}
+
+        for target_label in range(len(self.env.feature_names)):
+            self.logger[target_label] = {'best_expression': '',
+                                         'best_reward': -np.inf,
+                                         'i_epoch': -1}
+
 
     def train(self, n_epochs):
         batch, final_rewards = None, None
@@ -106,15 +106,13 @@ class BaseAlgorithm(ABC):
             print(f'Epoch: {i_epoch} / {n_epochs}')
             batch, final_rewards = self.sample_episodes(i_epoch=i_epoch)
             #  Early stopping
-            if (1 - self.logger['best_reward']) < 1e-15:
+            if (1 - self.logger[self.env.target_label]['best_reward']) < -1:
                 print('Early stopping', flush=True)
-                print(f'Found {self.logger["best_expression"]} at epoch {self.logger["i_best_epoch"]} '
-                      f'with reward {self.logger["best_reward"]}', flush=True)
+                print(f'Found {self.logger[self.env.target_label]["best_expression"]} at epoch {self.logger[self.env.target_label]["i_best_epoch"]} '
+                      f'with reward {self.logger[self.env.target_label]["best_reward"]}', flush=True)
                 break
 
             self.optimize_model(batch, final_rewards, i_epoch=i_epoch)
-
-
 
     @abstractmethod
     @torch.inference_mode()
@@ -132,6 +130,7 @@ class ReinforceAlgorithm(BaseAlgorithm):
         self.writer = SummaryWriter(comment=f"Reinforce_experiment_{self.dataset}_{time.time()}")
         self.transition_counter = Counter()
         self.transition_counter_dic = {}
+        self.best_equation = {}
 
     @torch.inference_mode()
     def sample_episodes(self, i_epoch=0):
@@ -152,7 +151,7 @@ class ReinforceAlgorithm(BaseAlgorithm):
                 # Select an action
 
                 with torch.inference_mode():
-                    if self.env.observe_hidden_state :
+                    if self.env.observe_hidden_state:
                         state['h'] = h_in.reshape((self.batch_size, 1, self.env.hidden_size)).detach().numpy()
                         state['c'] = c_in.reshape((self.batch_size, 1, self.env.hidden_size)).detach().numpy()
                     action, log_prob, entropy, h_out, c_out, _ = self.policy.select_action(state, h_in, c_in)
@@ -163,9 +162,9 @@ class ReinforceAlgorithm(BaseAlgorithm):
                 for i in range(self.batch_size):
                     if past_done[i] != 1:
                         transition = [{k: v[i] for k, v in state.items()},
-                                               h_in[0, i],
-                                               c_in[0, i],
-                                               action[i], past_done[i], done[i]]
+                                      h_in[0, i],
+                                      c_in[0, i],
+                                      action[i], past_done[i], done[i]]
                         transitions[i].append(transition)
                         if done[i] == 1:
                             horizon[i] = t
@@ -192,13 +191,13 @@ class ReinforceAlgorithm(BaseAlgorithm):
 
                 self.update_transition_counter_dic()
                 batch_max = final_rewards.max()
-                if batch_max > self.logger['best_reward']:
+                if batch_max > self.logger[self.env.target_label]['best_reward']:
                     i_best_reward = np.argmax(final_rewards)
-                    self.logger.update({'best_expression': self.env.translations[i_best_reward],
+                    self.logger[self.env.target_label].update({'best_expression': self.env.translations[i_best_reward],
                                         "best_reward": batch_max,
                                         "i_best_epoch": i_epoch})
-                    print(f'Found {self.logger["best_expression"]} at epoch {self.logger["i_best_epoch"]} '
-                          f'with reward {self.logger["best_reward"]}'
+                    print(f'Found {self.logger[self.env.target_label]["best_expression"]} at epoch {self.logger[self.env.target_label]["i_best_epoch"]} '
+                          f'with reward {self.logger[self.env.target_label]["best_reward"]}'
                           f'horizon {horizon[i_best_reward]}', flush=True)
 
                 # Print batch stats
@@ -206,7 +205,7 @@ class ReinforceAlgorithm(BaseAlgorithm):
                 self.writer.add_scalar('Batch/Std', final_rewards.std(), i_epoch)
                 self.writer.add_scalar('Batch/Max', final_rewards.max(), i_epoch)
                 self.writer.add_scalar('Batch/Risk Eps Quantile',
-                                       np.quantile(final_rewards, 1-self.risk_eps), i_epoch)
+                                       np.quantile(final_rewards, 1 - self.risk_eps), i_epoch)
 
                 # Print debug elements
                 if self.debug:
@@ -233,7 +232,7 @@ class ReinforceAlgorithm(BaseAlgorithm):
         num_samples = sum(top_filter)
 
         def filter_top_epsilon(b, filter):
-            #part of the risk seeking gradient, which only compute the cost function based on the
+            # part of the risk seeking gradient, which only compute the cost function based on the
             # top-epsilon quantile of the rewards.
             filtered_state = {k: [] for k in self.env.observation_space.spaces.keys()}
             filtered_h_in, filtered_c_in, filtered_action, filtered_done, filtered_rewards = [], [], [], [], []
@@ -258,6 +257,7 @@ class ReinforceAlgorithm(BaseAlgorithm):
                 filtered_done = torch.Tensor(filtered_done)
                 filtered_rewards = torch.Tensor(filtered_rewards)
             return filtered_state, filtered_h_in, filtered_c_in, filtered_action, filtered_done, filtered_rewards
+
         # Filter top trajectories
         state, h_in, c_in, action, done, rewards = filter_top_epsilon(batch, top_filter)
         if h_in == []:
@@ -310,5 +310,3 @@ class ReinforceAlgorithm(BaseAlgorithm):
 
     def get_bonus(self, total_rewards, total_log_probs, num_samples=0):
         return 0
-
-
