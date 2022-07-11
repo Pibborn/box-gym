@@ -16,6 +16,36 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from agents.TrackingCallback import TrackingCallback
 from stable_baselines3.common.evaluation import evaluate_policy
 
+SCALE = 0
+BASKETBALL = 1
+ORBIT = 2
+
+
+def wandbCSVTracking(run, csv_path, config=None, mode=SCALE):
+    mode_string = ["scale", "basketball", "orbit"][mode]
+    # ----------- Tracking of the CSV File ---------------------------------
+    # Read our CSV into a new DataFrame
+    new_dataframe = pd.read_csv(csv_path)
+
+    # Convert the DataFrame into a W&B Table
+    table = wandb.Table(dataframe=new_dataframe)
+
+    # Add the table to an Artifact to increase the row limit to 200000 and make it easier to reuse!
+    table_artifact = wandb.Artifact(f"{mode_string}_artifact", type="dataset")
+    table_artifact.add(table, f"{mode_string}_table")
+
+    # We will also log the raw csv file within an artifact to preserve our data
+    table_artifact.add_file(csv_path)
+
+    # Start a W&B run to log data
+    # run = wandb.init(project="box-gym", entity=args.entity, config=config, sync_tensorboard=True)
+
+    # Log the table to visualize with a run...
+    run.log({f"{mode_string}": table})
+
+    # and Log as an Artifact to increase the available row limit!
+    run.log_artifact(table_artifact)
+    return run
 
 # Scale functions
 def writeScaleData(env, agent, config, box_number=2):
@@ -33,11 +63,10 @@ def writeScaleData(env, agent, config, box_number=2):
     test_env = DummyVecEnv([lambda: env])
     # test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
 
-    wandb.init(project="box-gym", entity=args.entity, config=config, sync_tensorboard=True)
+    # Start a W&B run to log data
+    run = wandb.init(project="box-gym", entity=config.entity, config=config, sync_tensorboard=True)
 
-    wandb_callback = WandbCallback(gradient_save_freq=config.printevery,
-                                   model_save_path="results/temp",
-                                   verbose=0)
+    # wandb_callback = WandbCallback(gradient_save_freq=config.printevery, model_save_path="results/temp", verbose=0)
 
     for episode in range(1, config.episodes + 1):
         state = np.array(test_env.reset())  # torch.tensor(env.reset())
@@ -72,14 +101,18 @@ def writeScaleData(env, agent, config, box_number=2):
             # df2 = pd.DataFrame([[]], columns=list('AB'))
         test_rewards.append(R)
         mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
-        wandb.log({'test_rewards': mean_test_rewards})
+        # run.log({'test_rewards': mean_test_rewards})
 
     print(
         f"Success rate of test episodes: {test_matches}/{config.episodes}={(test_matches / config.episodes * 100):,.2f}%")
     # print(df)
     df.to_csv(f"savedagents/extracted_data/{config.path}.csv")
 
-    wandb.finish()
+    # Do the tracking of the CSV File
+    run = wandbCSVTracking(run, f"savedagents/extracted_data/{config.path}.csv", config)
+
+    # Finish the run (useful in notebooks)
+    run.finish()
     return
 
 
