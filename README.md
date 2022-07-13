@@ -75,7 +75,7 @@ python run_agent.py --envname='scale_draw' --random_densities --random_boxsizes 
 * first, make sure you have an agent saved, from which we want to extract data including box positions at the end and the sizes and densities of the boxes
 * to extract these information, run something like this
 ```
-python extract_data.py --envname="scale_draw" --random_densities --random_boxsizes --episodes=1000 --location="SAC_25000" --path="result25000"
+python DataExtraction/extract_data.py --envname="scale_draw" --random_densities --random_boxsizes --episodes=1000 --location="SAC_25000" --path="result25000"
 ```
 * important here is, that we still use the same flags as before when we trained this agent (e.g. use ```--random_densities``` and ```--random_boxsizes```)
 
