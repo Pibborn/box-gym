@@ -12,6 +12,7 @@ from agents.StableBaselinesAgents.HERAgent import HERAgent
 from environments.BasketballEnvironment import BasketballEnvironment
 # from environments.Pendulum import PendulumEnv, RGBArrayAsObservationWrapper
 from environments.OrbitEnvironment import OrbitEnvironment
+from DataExtraction.WandB import wandbCSVTracking
 
 matplotlib.rcParams['backend'] = 'WebAgg'
 try:
@@ -181,6 +182,7 @@ if __name__ == '__main__':
     parser.add_argument('--reward-norm', action='store_true')
     parser.add_argument('--disable_xvfb', action='store_true')
     parser.add_argument('--location', type=str, default="")
+    parser.add_argument('--path', type=str, default="temp")
     parser.add_argument('--normalize', action='store_true')
     parser.add_argument('--placed', type=int, default=1)
     parser.add_argument('--actions', type=int, default=1)
@@ -207,7 +209,7 @@ if __name__ == '__main__':
         vdisplay.start()
 
     wandb.tensorboard.patch(root_logdir="<logging_directory>")
-    wandb.init(project="box-gym", entity=args.entity, config=args, sync_tensorboard=True)
+    run = wandb.init(project="box-gym", entity=args.entity, config=args, sync_tensorboard=True)
 
     if not args.test:  # train + test new agent
         train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.rendering,
@@ -253,7 +255,7 @@ if __name__ == '__main__':
         args.location = f"savedagents/models/{args.location}"
         # agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=args.dropout, uses_scale=args.envname=='scale',
         #                     scale_exp=args.envname=='scale_exp')
-        agent.train_loop(train_env, test_env, args, verbose=1, only_testing=False)
+        test_rewards, df = agent.train_loop(train_env, test_env, args, verbose=1, only_testing=False)
         # save the trained agent
         if args.overwriting:
             agent.agent.save(args.location)
@@ -261,6 +263,12 @@ if __name__ == '__main__':
             print(f"Saved model {args.agent} to location {args.location}.zip")
             # agent.agent.save_replay_buffer(f"{args.location}_replay_buffer")
             # print(f"Saved replay buffer from training to location {args.location}_replay_buffer.pkl")
+
+        # save the csv file
+        df.to_csv(f"savedagents/extracted_data/{args.path}.csv")
+
+        # Do the tracking of the CSV File
+        run = wandbCSVTracking(run, f"savedagents/extracted_data/{args.path}.csv", args)
 
     else:  # load old agent and test him
         # load the agent
@@ -303,9 +311,17 @@ if __name__ == '__main__':
         print(f"Loaded agent from Model {args.agent} from location {args.location}")
 
         # use the loaded agent
-        mean_test_rewards = agent.test_loop(test_env=test_env, config=args, verbose=1)
+        mean_test_rewards, df = agent.test_loop(test_env=test_env, config=args, verbose=1)
         # mean_test_rewards = agent.evaluate_model(test_env=test_env, config=args)
+
+        df.to_csv(f"savedagents/extracted_data/{args.path}.csv")
+
+        # Do the tracking of the CSV File
+        run = wandbCSVTracking(run, f"savedagents/extracted_data/{args.path}.csv", args)
+
     end_time = time.time()
     print(end_time - start_time)
 
-    wandb.finish()
+
+    # Finish the run (useful in notebooks)
+    run.finish()
