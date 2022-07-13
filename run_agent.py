@@ -13,6 +13,7 @@ from environments.BasketballEnvironment import BasketballEnvironment
 # from environments.Pendulum import PendulumEnv, RGBArrayAsObservationWrapper
 from environments.OrbitEnvironment import OrbitEnvironment
 from DataExtraction.WandB import wandbCSVTracking
+from ArgumentParser import create_argparser
 
 matplotlib.rcParams['backend'] = 'WebAgg'
 try:
@@ -44,9 +45,9 @@ def create_envs(env_str='', seed=42, do_render=True, random_densities=False, ran
                 random_density=False, random_ball_size=False, random_basket=False, random_ball_position=False,
                 random_planet_position=False, random_gravity=False,
                 random_satellite_position=False, random_satellite_density=False, random_satellite_size=False):
-    allowed_strings = ['scale', 'scale_exp', 'scale_single', 'scale_draw', '']
-    # if str(env_str) not in allowed_strings:
-    #    raise AssertionError(f"Environment name {env_str} not in allowed list {allowed_strings}")
+    allowed_strings = ['scale', 'scale_exp', 'scale_single', 'scale_draw', 'basketball', 'orbit']
+    if str(env_str).lower() not in allowed_strings:
+        raise AssertionError(f"Environment name {env_str} not in allowed list {allowed_strings}")
     env_str = env_str.lower()
     if env_str == 'scale':
         train_env = Scale(rendering=do_render, random_densities=random_densities,
@@ -81,12 +82,6 @@ def create_envs(env_str='', seed=42, do_render=True, random_densities=False, ran
                                          random_density=random_density or random_densities,
                                          random_ball_size=random_ball_size or random_boxsizes,
                                          random_basket=random_basket, random_ball_position=random_ball_position)
-        """elif env_str == 'pendulum':
-        train_env = PendulumEnv(g=9.81, rendering=do_render)
-        test_env = PendulumEnv(g=9.81, rendering=do_render)
-        if args.raw_pixels:
-            train_env = RGBArrayAsObservationWrapper(train_env)
-            test_env = RGBArrayAsObservationWrapper(test_env)"""
     elif env_str == 'orbit':
         train_env = OrbitEnvironment(rendering=do_render, normalize=normalize, raw_pixels=raw_pixels,
                                      random_planet_position=random_planet_position, random_gravity=random_gravity,
@@ -94,10 +89,10 @@ def create_envs(env_str='', seed=42, do_render=True, random_densities=False, ran
                                      random_satellite_size=random_satellite_size,
                                      random_satellite_density=random_satellite_density)
         test_env = OrbitEnvironment(rendering=do_render, normalize=normalize, raw_pixels=raw_pixels,
-                                     random_planet_position=random_planet_position, random_gravity=random_gravity,
-                                     random_satellite_position=random_satellite_position,
-                                     random_satellite_size=random_satellite_size,
-                                     random_satellite_density=random_satellite_density)
+                                    random_planet_position=random_planet_position, random_gravity=random_gravity,
+                                    random_satellite_position=random_satellite_position,
+                                    random_satellite_size=random_satellite_size,
+                                    random_satellite_density=random_satellite_density)
     else:
         train_env = GymEnv(env_str)
         train_env = train_env.create()
@@ -120,6 +115,71 @@ def get_env_dims(env):
     else:
         in_dim = len(env.observation_space)
     return in_dim, out_dim
+
+def create_agent(agentname, location, args, test_env=None):
+    if not args.test:
+        if agentname.lower() == 'sac':
+            agent = SACAgent(input_dim, output_dim, lr=args.lr,
+                             policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
+            if location == "":
+                location = "SAC_Model"
+        elif agentname.lower() == 'a2c':
+            agent = A2CAgent(input_dim, output_dim, lr=args.lr,
+                             policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
+            if location == "":
+                location = "A2C_Model"
+        elif agentname.lower() == 'ppo':
+            agent = PPOAgent(input_dim, output_dim, lr=args.lr,
+                             policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
+            if location == "":
+                location = "A2C_Model"
+        elif agentname.lower() == 'her':  # todo: delete
+            agent = HERAgent(input_dim, output_dim,
+                             lr=args.lr, )  # policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
+            if location == "":
+                location = "HER_Model"
+        elif agentname.lower() == 'custom':
+            """ agent = CustomAgent(input_dim, output_dim, lr=args.lr,) # policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
+                if args.location == "":
+                    args.location = "Custom_Model" """
+            pass
+        else:
+            raise ValueError('Agent string {} not recognized'.format(agentname))
+        args.location = f"savedagents/models/{args.location}"
+        # agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
+        # agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=args.dropout, uses_scale=args.envname=='scale',
+        #                     scale_exp=args.envname=='scale_exp')
+        return agent, location
+    else:
+        if agentname == 'sac':
+            agent = SACAgent(input_dim, output_dim, lr=args.lr)
+            if type(test_env.observation_space) != gym.spaces.Box:
+                test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
+            location = f"savedagents/models/{location if location != '' else 'SAC_Model'}"
+            agent.agent = SAC.load(location if location != '' else 'SAC_Model', env=test_env)
+            # agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")
+        elif agentname == 'a2c':
+            agent = A2CAgent(input_dim, output_dim, lr=args.lr)
+            test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
+            location = f"savedagents/models/{args.location if location != '' else 'A2C_Model'}"
+            agent.agent = A2C.load(args.location if location != '' else 'A2C_Model', env=test_env)
+            # agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")
+        elif args.agent == 'custom':
+            """agent = CustomAgent(input_dim, output_dim, lr=args.lr)
+            test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
+            location = f"savedagents/models/{args.location if args != '' else 'Custom_Model'}"
+            agent.agent = SAC.load(args.location if args != '' else 'Custom_Model', env=test_env)
+            # agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")"""
+            pass
+        elif args.agent == 'sr':
+            formula = "(x1 * (x2 * -0.99871546) * inv(x3))"
+            formula = "((x1 * -0.998) / (x3 / x2))"  # "div(mul(X0, -0.998), div(X2, X1))"
+            formula = "((-0.005 - x1) / (x3 / x2))"
+            agent = SRAgent(input_dim, output_dim, function=formula)
+        else:
+            raise ValueError('Agent string {} not recognized'.format(args.agent))
+        # agent.load_agent(args.location)
+        return agent, location
 
 
 def plot_rewards(train_rewards, test_rewards, threshold):
@@ -162,45 +222,7 @@ def plot_test_rewards(test_rewards, threshold):
 
 if __name__ == '__main__':
     start_time = time.time()
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--envname', type=str, default='scale_single')
-    parser.add_argument('--agent', type=str, default='sac')
-    parser.add_argument('--seed', type=int, default=42)  # old default: 42
-    parser.add_argument('--episodes', type=int, default=10000)  # old default: 1000
-    parser.add_argument('--trials', type=int, default=100)
-    parser.add_argument('--printevery', type=int, default=500)  # old default: 10
-    parser.add_argument('--discount', type=float, default=0.99)  # old default: 0.99
-    parser.add_argument('--threshold', type=float, default=20.1)  # old default: 475
-    parser.add_argument('--dropout', type=float, default=0.2)  # old default: 0.2
-    parser.add_argument('--random_densities', action='store_true')
-    parser.add_argument('--random_boxsizes', action='store_true')
-    parser.add_argument('--rendering', action='store_true')
-    parser.add_argument('--overwriting', action='store_true')
-    parser.add_argument('--entity', type=str, default='jgu-wandb')
-    parser.add_argument('--lr', type=float, default=1e-4)
-    parser.add_argument('--test', action='store_true')
-    parser.add_argument('--reward-norm', action='store_true')
-    parser.add_argument('--disable_xvfb', action='store_true')
-    parser.add_argument('--location', type=str, default="")
-    parser.add_argument('--path', type=str, default="temp")
-    parser.add_argument('--normalize', action='store_true')
-    parser.add_argument('--placed', type=int, default=1)
-    parser.add_argument('--actions', type=int, default=1)
-    parser.add_argument('--sides', type=int, default=2)
-    parser.add_argument('--raw_pixels', action='store_true')
-    # additional basketball settings
-    parser.add_argument('--random_density', action='store_true')  # equivalent to --random_densities flag
-    parser.add_argument('--random_ball_size', action='store_true')  # equivalent to --random_boxsize flag
-    parser.add_argument('--random_basket', action='store_true')
-    parser.add_argument('--random_ball_position', action='store_true')
-    parser.add_argument('--walls', type=int, default=0)
-    # additional orbit settings
-    parser.add_argument('--random_planet_position', action='store_true')
-    parser.add_argument('--random_gravity', action='store_true')
-    parser.add_argument('--random_satellite_size', action='store_true')
-    parser.add_argument('--random_satellite_position', action='store_true')
-    parser.add_argument('--random_satellite_density', action='store_true')
-    args = parser.parse_args()
+    args = create_argparser()
 
     if not args.disable_xvfb:
         from xvfbwrapper import Xvfb
@@ -217,44 +239,17 @@ if __name__ == '__main__':
                                           normalize=args.normalize, placed=args.placed, actions=args.actions,
                                           sides=args.sides, raw_pixels=args.raw_pixels, walls=args.walls,
                                           random_density=args.random_density, random_ball_size=args.random_ball_size,
-                                          random_basket=args.random_basket, random_ball_position=args.random_ball_position,
-                                          random_gravity=args.random_gravity, random_satellite_position=args.random_satellite_position,
-                                          random_planet_position=args.random_planet_position, random_satellite_size=args.random_satellite_size,
+                                          random_basket=args.random_basket,
+                                          random_ball_position=args.random_ball_position,
+                                          random_gravity=args.random_gravity,
+                                          random_satellite_position=args.random_satellite_position,
+                                          random_planet_position=args.random_planet_position,
+                                          random_satellite_size=args.random_satellite_size,
                                           random_satellite_density=args.random_satellite_size)
         input_dim, output_dim = get_env_dims(train_env)
-        # agent = QAgent(input_dim, output_dim, gamma=args.discount, lr=args.lr)
-        if args.agent.lower() == 'sac':
-            agent = SACAgent(input_dim, output_dim, lr=args.lr,
-                             policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
-            if args.location == "":
-                args.location = "SAC_Model"
-        elif args.agent.lower() == 'a2c':
-            agent = A2CAgent(input_dim, output_dim, lr=args.lr,
-                             policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
-            if args.location == "":
-                args.location = "A2C_Model"
-        elif args.agent.lower() == 'ppo':
-            agent = PPOAgent(input_dim, output_dim, lr=args.lr,
-                             policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
-            if args.location == "":
-                args.location = "A2C_Model"
-        elif args.agent.lower() == 'her':  # todo: delete
-            agent = HERAgent(input_dim, output_dim,
-                             lr=args.lr, )  # policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
-            if args.location == "":
-                args.location = "HER_Model"
-        elif args.agent.lower() == 'custom':
-            pass
-            """
-                agent = CustomAgent(input_dim, output_dim, lr=args.lr,) # policy='MlpPolicy' if not args.raw_pixels else 'CnnPolicy')
-                if args.location == "":
-                    args.location = "Custom_Model"
-            """
-        else:
-            raise ValueError('Agent string {} not recognized'.format(args.agent))
-        args.location = f"savedagents/models/{args.location}"
-        # agent = VanillaGradMLP(input_dim, 100, output_dim, dropout=args.dropout, uses_scale=args.envname=='scale',
-        #                     scale_exp=args.envname=='scale_exp')
+
+        agent, args.location = create_agent(agentname=args.agent, location=args.location, args=args)
+
         test_rewards, df = agent.train_loop(train_env, test_env, args, verbose=1, only_testing=False)
         # save the trained agent
         if args.overwriting:
@@ -277,35 +272,8 @@ if __name__ == '__main__':
                                           normalize=args.normalize, placed=args.placed, actions=args.actions,
                                           sides=args.sides)
         input_dim, output_dim = get_env_dims(test_env)
-        if args.agent == 'sac':
-            agent = SACAgent(input_dim, output_dim, lr=args.lr)
-            if type(test_env.observation_space) != gym.spaces.Box:
-                test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
-            args.location = f"savedagents/models/{args.location if args != '' else 'SAC_Model'}"
-            agent.agent = SAC.load(args.location if args != '' else 'SAC_Model', env=test_env)
-            # agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")
-        elif args.agent == 'a2c':
-            agent = A2CAgent(input_dim, output_dim, lr=args.lr)
-            test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
-            args.location = f"savedagents/models/{args.location if args != '' else 'A2C_Model'}"
-            agent.agent = A2C.load(args.location if args != '' else 'A2C_Model', env=test_env)
-            # agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")
-        elif args.agent == 'custom':
-            pass
-            """agent = CustomAgent(input_dim, output_dim, lr=args.lr)
-            test_env.observation_space = agent.convert_observation_space(test_env.observation_space)
-            args.location = f"savedagents/models/{args.location if args != '' else 'Custom_Model'}"
-            agent.agent = SAC.load(args.location if args != '' else 'Custom_Model', env=test_env)
-            # agent.agent.load_replay_buffer(f"{args.location}_replay_buffer")"""
-        elif args.agent == 'sr':
-            formula = "(x1 * (x2 * -0.99871546) * inv(x3))"
-            formula = "((x1 * -0.998) / (x3 / x2))"  # "div(mul(X0, -0.998), div(X2, X1))"
-            formula = "((-0.005 - x1) / (x3 / x2))"
-            agent = SRAgent(input_dim, output_dim, function=formula)
-        else:
-            raise ValueError('Agent string {} not recognized'.format(args.agent))
-        # agent.load_agent(args.location)
 
+        agent, args.location = create_agent(agentname=args.agent, location=args.location, args=args, test_env=test_env)
         # test_env = agent.agent.get_env()  # maybe the better solution?
 
         print(f"Loaded agent from Model {args.agent} from location {args.location}")
@@ -321,7 +289,6 @@ if __name__ == '__main__':
 
     end_time = time.time()
     print(end_time - start_time)
-
 
     # Finish the run (useful in notebooks)
     run.finish()

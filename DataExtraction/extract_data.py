@@ -17,6 +17,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from agents.TrackingCallback import TrackingCallback
 from stable_baselines3.common.evaluation import evaluate_policy
 from DataExtraction.WandB import wandbCSVTracking
+from ArgumentParser import create_argparser
 
 SCALE = 0
 BASKETBALL = 1
@@ -251,33 +252,7 @@ def readBasketballData(env, config):
 
 # Main
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--envname', type=str, default='scale_single')
-    parser.add_argument('--agent', type=str, default='sac')
-    parser.add_argument('--episodes', type=int, default=10000)
-    parser.add_argument('--printevery', type=int, default=500)
-    parser.add_argument('--trials', type=int, default=100)
-    parser.add_argument('--entity', type=str, default='jgu-wandb')
-    parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--random_densities', action='store_true')
-    parser.add_argument('--random_boxsizes', action='store_true')
-    parser.add_argument('--rendering', action='store_true')
-    parser.add_argument('--location', type=str, default="")
-    parser.add_argument('--reward-norm', action='store_true')
-    parser.add_argument('--normalize', action='store_true')
-    parser.add_argument('--path', type=str, default='results')
-    parser.add_argument('--placed', type=int, default=1)
-    parser.add_argument('--actions', type=int, default=1)
-    parser.add_argument('--sides', type=int, default=2)
-    parser.add_argument('--raw_pixels', action='store_true')
-    parser.add_argument('--mode', type=int, default=1)
-    # additional basketball settings
-    parser.add_argument('--random_density', action='store_true')  # equivalent to --random_densities flag
-    parser.add_argument('--random_ball_size', action='store_true')  # equivalent to --random_boxsize flag
-    parser.add_argument('--random_basket', action='store_true')
-    parser.add_argument('--random_ball_position', action='store_true')
-    parser.add_argument('--walls', type=int, default=0)
-    args = parser.parse_args()
+    args = create_argparser()
 
     _, test_env = run_agent.create_envs(args.envname, seed=args.seed, do_render=args.rendering,
                                         random_densities=args.random_densities, random_boxsizes=args.random_boxsizes,
