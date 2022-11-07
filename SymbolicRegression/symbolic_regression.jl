@@ -7,7 +7,7 @@ SCALE = 1
 BASKETBALL = 2
 mode = SCALE
 
-file_name = "results_easy"
+file_name = "results"
 df = DataFrame(CSV.File("savedagents/extracted_data/$file_name.csv"))
 df = select!(df, Not("Column1")) # cut the first column
 
@@ -75,25 +75,23 @@ end
 #println(y)
 
 options = SymbolicRegression.Options(
-    binary_operators=(+, *),
-    unary_operators=(cos, exp, inv, sin),
-    #unary_operators=(exp, inv),
-    npopulations=20,
+    binary_operators=(+, *, -, /),
+    unary_operators=(inv, exp),
+    npopulations=100,
 )
 
-hallOfFame = EquationSearch(X, y, niterations=5, options=options, numprocs=4)
+hallOfFame = EquationSearch(X, y, niterations=5, options=options)
 
-dominating = calculateParetoFrontier(X, y, hallOfFame, options)
+dominating = calculate_pareto_frontier(X, y, hallOfFame, options)
 
 eqn = node_to_symbolic(dominating[end].tree, options)
-#println(simplify(eqn*5 + 3))
 
 println("Complexity\tMSE\tEquation")
 
 for member in dominating
-    size = countNodes(member.tree)
+    size = count_nodes(member.tree)
     score = member.score
-    string = stringTree(member.tree, options)
+    string = string_tree(member.tree, options)
 
     println("$(size)\t$(score)\t$(string)")
 end
@@ -101,29 +99,3 @@ end
 if mode == BASKETBALL
     println("x1: x-Position Ball, x2: y-Position Ball, x3: Radius, x4: Density, x5: x-Position Basket, x6: y-Position Basket, x7: Radius Basket")
 end
-#df = DataFrame(CSV.File("savedagents/results.csv"))
-"""
-X = randn(Float32, 5, 100)
-y = 2 * cos.(X[4, :]) + X[1, :] .^ 2 .- 2
-
-options = SymbolicRegression.Options(
-    binary_operators=(+, *, /, -),
-    unary_operators=(cos, exp),
-    npopulations=20
-)
-
-hallOfFame = EquationSearch(X, y, niterations=5, options=options, numprocs=4)
-
-dominating = calculateParetoFrontier(X, y, hallOfFame, options)
-
-eqn = node_to_symbolic(dominating[end].tree, options)
-#println(simplify(eqn*5 + 3))
-
-println("Complexity\tMSE\tEquation")
-
-for member in dominating
-    size = countNodes(member.tree)
-    score = member.score
-    string = stringTree(member.tree, options)
-"""
-    #println("$(size)\t$(score)\t$(string)")

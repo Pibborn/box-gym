@@ -92,4 +92,4 @@ Once we ran the extract_data.py file, we have a CSV file in the savedagents/resu
 
 ==NOTE:== for now, it only works with two boxes, which mean that we can only use or default setting with one box placed by the agent and one placed randomly before on the scale. 
 
-(todo: explain how to use the symbolic regression files)
+Now you are ready to run ```SymbolicRegression/symbolic_regression.jl```. This requires installing ```julia``` on your machine.
