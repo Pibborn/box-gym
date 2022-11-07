@@ -5,6 +5,7 @@ import time
 
 if __name__ == "__main__":
     file_name = "results_easy"
+    file_name = "free_fall_20000"
     df = pd.read_csv(f"savedagents/extracted_data/{file_name}.csv")  # , sep="\t")
     df = df.drop(df.columns[0], axis=1)
     df = df.reset_index()  # make sure indexes pair with number of rows

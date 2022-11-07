@@ -215,7 +215,7 @@ def writeBasketballData(env, agent, config):
             state, reward, done, info = env.step(action[0])
             R += reward
             t += 1
-            reset = t == env.max_timesteps
+            reset = t == env.max_time_steps
             if done or reset:
                 break
         if R >= 100:

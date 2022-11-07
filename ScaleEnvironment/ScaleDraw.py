@@ -28,6 +28,8 @@ from time import time, sleep
 import numpy as np
 from collections import defaultdict
 
+from ScaleEnvironment.RenderUtilities import convertDensityToRGB
+from ScaleEnvironment.framework import (Framework, Keys, main)
 import Box2D  # The main library
 from Box2D import b2Color, b2Vec2, b2DrawExtended
 from gym import spaces
@@ -64,6 +66,7 @@ barColor = (255, 0, 0)
 BOXSIZE = 1.0
 DENSITY = 5.0
 BARLENGTH = 15
+BARHEIGHT = 6  # height of the bar joint
 
 FAULTTOLERANCE = 0.001  # for the angle of the bar
 ANGLE_TRESHOLD = 0.98
@@ -90,11 +93,11 @@ def rescale_movement(original_interval, value, to_interval=(-BARLENGTH, +BARLENG
     return c + ((d - c) / (b - a)) * (value - a)
 
 
-class ScaleDraw(gym.Env):
+class ScaleDraw(Framework, gym.Env): #todo: rename to Scale
     name = "Scale"  # Name of the class to display
 
     def __init__(self, rendering=True, random_densities=True, random_boxsizes=False, normalize=False, placed=1,
-                 actions=1, sides=2, raw_pixels=False):
+                 actions=1, sides=2, raw_pixels=False, use_own_render_function=True):
         """
         Initialization of the Scale Environment
 
@@ -114,41 +117,26 @@ class ScaleDraw(gym.Env):
         :type sides: int
         :param raw_pixels: if True: the agent gets an pixel array as input, else: agent gets the observation space as an accumulation of values (positions, densities, boxsizes, bar angle, velocitiy of the bar, ...)
         :type raw_pixels: bool
+        :param use_own_render_function: if True: use own render function, only possibility to learn from pixels
+        :type use_own_render_function: bool
         """
-
+        # ---------------------- settings & global variables -----------------------------------------------------------
         self.np_random = None
-        self.seed()
+        self.seed()  # call the seed function here (seed can still be overwritten afterwards)
 
         self.num_envs = 1  # for stable-baseline3
 
         # Initialize all the objects
         self.y = 6.0 + BOXSIZE
-        BARHEIGHT = 6  # height of the bar joint
 
-        # screen / observation space measurements
-        self.height = SCREEN_HEIGHT  # 480
-        self.width = SCREEN_WIDTH  # 640
-        factor = 1
-        self.height //= factor
-        self.width //= factor
-
-        # Pygame setup
-        if rendering:
-            pygame.init()
-
-            self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), 0, 32)
-            pygame.display.set_caption('Box Gym')
-        else:
-            self.screen = pygame.display.set_mode((1, 1))
-        self.clock = pygame.time.Clock()
-
-        # Box2d world setup
+        # Box2D world setup
         # Create the world
         self.world = world(gravity=(0, -9.80665), doSleep=True)
 
         self.counter = 0
         self.timesteps = 0
         self.reward = 0
+        self.row = 0  # todo: delete
 
         self.rendering = rendering  # should the simulation be rendered or not
         self.random_densities = random_densities  # random densities or are both the same
@@ -162,23 +150,52 @@ class ScaleDraw(gym.Env):
         if self.sides not in {1, 2}:
             assert ValueError("Sides value should be either 1 or 2")
         self.raw_pixels = raw_pixels
+        # attention: if we want to return pixels as observation, we must use our own render function
+        self.use_own_render_function = raw_pixels | use_own_render_function
 
         self.order = None
 
+        # ---------------------- rendering stuff -----------------------------------------------------------------------
+        if self.use_own_render_function:
+            # screen / observation space measurements
+            self.height = SCREEN_HEIGHT  # 480
+            self.width = SCREEN_WIDTH  # 640
+            # use this factor for rescaling the size of the window
+            factor = 1
+            self.height = int(self.height * factor)
+            self.width = int(self.width * factor)
+
+            # Pygame setup
+            if rendering:
+                pygame.init()
+
+                self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), 0, 32)
+                pygame.display.set_caption('Box Gym')
+            else:
+                self.screen = pygame.display.set_mode((1, 1))
+            self.clock = pygame.time.Clock()
+            # overwrite render function
+            self.render = self.render_new
+        else:
+            # use the framework from Box2D and its render tools
+            super(ScaleDraw, self).__init__(rendering)
+
+        # ---------------------- Stable Baselines  ---------------------------------------------------------------------
         # action space determination
         limit1, limit2 = BARLENGTH - 2 * BOXSIZE, 2 * BOXSIZE
         if not self.normalize:
+            # these are the limits where we are allowed to place the box
             self.action_space = Box(
                 low=np.array([-limit1 if not self.sides == 1 else limit2 for _ in range(actions)]),
                 high=np.array([limit1 for _ in range(actions)]),
                 shape=(self.actions,), dtype=np.float32)
         else:
-            self.action_space = Box(low=np.array([-1 if self.sides == 2 else 0 for _ in range(actions)]),
+            self.action_space = Box(low=np.array([0 if self.sides == 1 else -1 for _ in range(actions)]),
                                     high=np.array([1 for _ in range(actions)]),
                                     shape=(self.actions,), dtype=np.float32)
 
         # observation space
-        if not raw_pixels:
+        if not raw_pixels:  # --> we get an array of values back as state instead of the pixel map
             observation_dict = {
                 "angle": Box(low=-0.390258252620697, high=0.390258252620697, shape=(1,), dtype=float),
                 # angular velocity of the bar, negative: moves to the right, positive: moves to the left
@@ -197,6 +214,9 @@ class ScaleDraw(gym.Env):
                                                       high=1. if self.normalize else 1.2, shape=(1,), dtype=float)
 
             self.observation_space = spaces.Dict(spaces=observation_dict)  # convert to Spaces Dict
+        # example structure of the state for 3 boxes:
+        # angle - velocity - position box 1 - density box 1 - size box 1 - position box 2 - density box 2 - size box 2
+        # - position box 3 - density box 3 - size box 3
 
         else:
             """self.observation_space = spaces.Box(low=0, high=1. if self.normalize else 255,
@@ -205,7 +225,7 @@ class ScaleDraw(gym.Env):
             dummy_obs = self.render("rgb_array")
             self.observation_space = spaces.Box(low=0, high=255, shape=dummy_obs.shape, dtype=dummy_obs.dtype)
 
-        # setting up the objects on the screen
+        # ---------------------- setting up the objects on the screen --------------------------------------------------
         self.ground = self.world.CreateStaticBody(
             position=(0, 0),
             shapes=polygonShape(box=(40, 1)),
@@ -230,6 +250,7 @@ class ScaleDraw(gym.Env):
         # connect the bar with the triangle
         self.joint = self.world.CreateRevoluteJoint(bodyA=self.bar, bodyB=self.triangle, anchor=topCoordinate)
 
+        # ---------------------- total reset --------------------------------------------------------------------------
         # reset every dict/array and all the boxes on the screen
         self.boxes = defaultdict(lambda: None)
         self.boxsizes = defaultdict(lambda: None)
@@ -672,6 +693,8 @@ class ScaleDraw(gym.Env):
         timesteps = 120
         # self.action = action
         done = False
+        pos1, _, _, _, den1, den2, size1, size2 = self.state
+        action = np.array([- pos1 * den1 * size1 ** 2 / (den2 * size2 ** 2)])
         for _ in range(timesteps):
             self.old_state = self.state
             self.state, reward, done, info = self.internal_step(action)
@@ -680,7 +703,7 @@ class ScaleDraw(gym.Env):
                 break
         if not done:
             done = True
-            self.reset()
+            #self.reset()
         return self.state, reward, done, info
 
     def internal_step(self, action=None):
@@ -701,6 +724,11 @@ class ScaleDraw(gym.Env):
             :rtype: bool
             """
             for box in list(self.boxes.values()):
+                #print(self.state)
+                #print(box.fixtures[0].body)
+                #sleep(100)
+                #print(box.mass, box.fixtures[0].density, box.fixtures[0].size)
+                #sleep(100)
                 if len(box.contacts) < 1:
                     return False
             val = len(self.bar.contacts) == self.actions + self.placed
@@ -717,12 +745,12 @@ class ScaleDraw(gym.Env):
             if boxesOnScale():
                 # both boxes on one side: negative reward
                 if abs(self.bar.angle) < FAULTTOLERANCE and boxesOnScale():
-                    reward = 1
+                    reward = 20
                 else:
                     reward = (self.maxAngle - abs(self.bar.angle)) / self.maxAngle
                 self.reward += reward
             else:  # one or both boxes not on the scale
-                reward = - 1
+                reward = - 10
             return reward
 
         # Don't do anything if the setting's Hz are <= 0
@@ -741,7 +769,7 @@ class ScaleDraw(gym.Env):
             reward = getReward()
             self.render()
             # self.render(mode="state_pixels" if self.raw_pixels else "human")
-            self.reset()
+            #self.reset()
             if self.normalize:
                 return self.rescaleState(state), reward, True, {}
             return state, reward, True, {}
@@ -753,11 +781,21 @@ class ScaleDraw(gym.Env):
                 # self.render()
                 state = self.resetState()
                 tab = '\t'
-                print(
-                    f"Match: [{tab.join([str(box.position[0] / math.cos(self.bar.angle)) for box in self.boxes.values()])}]\t{self.bar.angle}\t{20 * math.cos(self.bar.angle)}")
+                box1, box2 = self.boxes.values()
+                pos1 = box1.position[0] / math.cos(self.bar.angle)
+                pos2 = box2.position[0] / math.cos(self.bar.angle)
+                m1 = box1.mass
+                m2 = box2.mass
+                den1, den2, s1, s2 = state[4:8]
+                s1 *= 2
+                s2 *= 2
+                #print(f"{self.row}, {pos1}, {pos2}, {den1}, {den2}, {s1}, {s2}")
+                print(f"{self.row}, {pos1}, {pos2}, {den1}, {den2}, {s1 * s1}, {s2 * s2}")
+                #    f"Match: [{tab.join([str(box.position[0] / math.cos(self.bar.angle)) for box in self.boxes.values()])}]\t{self.bar.angle}\t{20 * math.cos(self.bar.angle)}")
                 reward = getReward()
+                self.row += 1
                 # print(self.action)
-                self.reset()
+                #self.reset()
                 if self.normalize:
                     return self.rescaleState(state), 20 * math.cos(self.bar.angle), True, {}
                 return state, 20 * math.cos(self.bar.angle), True, {}
@@ -772,7 +810,6 @@ class ScaleDraw(gym.Env):
             self.world.ClearForces()
             # self.render(mode="state_pixels" if self.raw_pixels else "human")
             self.render()
-            getReward()
             reward = getReward()
             # reward = self.timesteps
             self.state = self.resetState()
@@ -816,6 +853,47 @@ class ScaleDraw(gym.Env):
         sys.exit()
 
     def render(self, mode="human"):
+        if self.use_own_render_function:
+            return self.render_new(mode=mode)
+        else:
+            return self.render_old(mode=mode)
+
+    def render_old(self, mode="human"):
+        renderer = self.renderer
+
+        self.screen.fill((0, 0, 0))
+
+        # Set the flags based on what the settings show
+        if renderer:
+            # convertVertices is only applicable when using b2DrawExtended.  It
+            # indicates that the C code should transform box2d coords to screen
+            # coordinates.
+            is_extended = isinstance(renderer, b2DrawExtended)
+            renderer.flags = dict(drawShapes=True,
+                                  drawJoints=False,  # True
+                                  drawAABBs=False,
+                                  drawPairs=False,
+                                  drawCOMs=False,
+                                  convertVertices=is_extended,
+                                  )
+
+        self.world.warmStarting = True
+        self.world.continuousPhysics = True
+        self.world.subStepping = False
+
+        # Reset the collision points
+        self.points = []
+
+        if renderer is not None:
+            renderer.StartDraw()
+
+        self.world.DrawDebugData()
+
+        if renderer:
+            renderer.EndDraw()
+            pygame.display.flip()
+
+    def render_new(self, mode="human"):
         """
         Render function, which runs the simulation and render it (if wished)
 
@@ -836,7 +914,7 @@ class ScaleDraw(gym.Env):
                 # pygame.draw.polygon(self.screen, self.convertDensityToRGB(density=fixture.density), vertices)
                 # here: don't use the red color channel, only use green and blue
                 pygame.draw.polygon(self.screen,
-                                    self.convertDensityToRGB(density=fixture.density, low=3.5, high=6.5, channels=[False, True, True]),
+                                    convertDensityToRGB(density=fixture.density, low=3.5, high=6.5, channels=[False, True, True]),
                                     vertices)
 
             """if body.userData is not None:

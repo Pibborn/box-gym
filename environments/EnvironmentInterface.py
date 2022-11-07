@@ -66,32 +66,14 @@ class EnvironmentInterface(gym.Env, ABC):
         self.clock = pygame.time.Clock()
 
         self.timesteps = 0
-        self.max_timesteps = 300
+        self.max_time_steps = 300
+        self.passed_time_steps = 0
 
-        # set up the box2d world
-        self.world = world(gravity=(0, gravity), doSleep=True)
         self.world_height = 30  # todo: set it up right
         self.world_width = 40
 
-        # setting up the objects on the screen
-        self.ground = self.world.CreateStaticBody(
-            position=(self.world_width/2, 0),
-            shapes=polygonShape(box=(self.world_width, 1)),
-            userData=groundColor,
-        )
-
-        if walls > 0:
-            self.right_wall = self.world.CreateStaticBody(
-                position=(self.world_width, 0),
-                shapes=polygonShape(box=(1, self.world_height)),
-                userData=groundColor,
-            )
-        if walls > 1:
-            self.left_wall = self.world.CreateStaticBody(
-                position=(0, 0),
-                shapes=polygonShape(box=(1, self.world_height)),
-                userData=groundColor,
-            )
+        # set up the box2d world
+        self.world = self.createWorld()
 
 
         self.normalize = normalize
@@ -112,22 +94,29 @@ class EnvironmentInterface(gym.Env, ABC):
 
         self.state = None
         self.old_state = None
+        self.first_state = None
+        self.final_state = None
         self.normalized_state = None
         self.reset()
 
     def step(self, action=None):
         done = False
+        self.first_state = self.updateState()
         # self.state = self.reset()
-        for _ in range(self.max_timesteps):
+        for i in range(self.max_time_steps):
+            self.passed_time_steps = i
             # self.render()
             self.old_state = self.state
             self.state, reward, done, info = self.internal_step(action)
             action = None
             if done:
+                self.final_state = self.state
                 break
         if not done:
             done = True
-            self.reset()
+            #self.reset()
+            # !!!!
+        #print(self.state)
         return self.state, reward, done, info
 
     @abc.abstractmethod
@@ -186,7 +175,8 @@ class EnvironmentInterface(gym.Env, ABC):
             reward = self.getReward()
             self.render()
             # self.render(mode="state_pixels" if self.raw_pixels else "human")
-            self.reset()
+            # self.reset()
+            # !!!
             return state if not self.normalize else self.rescaleState(state), reward, True, {}
 
         # check if success
@@ -350,6 +340,31 @@ class EnvironmentInterface(gym.Env, ABC):
         :rtype: ??
         """
         raise NotImplementedError
+
+    def createWorld(self, walls=0, gravity=-9.80665):
+        self.world = world(gravity=(0, gravity), doSleep=True)
+
+        # setting up the objects on the screen
+        self.ground = self.world.CreateStaticBody(
+            position=(self.world_width / 2, 0),
+            shapes=polygonShape(box=(self.world_width, 1)),
+            userData=groundColor,
+        )
+
+        if walls > 0:
+            self.right_wall = self.world.CreateStaticBody(
+                position=(self.world_width, 0),
+                shapes=polygonShape(box=(1, self.world_height)),
+                userData=groundColor,
+            )
+        if walls > 1:
+            self.left_wall = self.world.CreateStaticBody(
+                position=(0, 0),
+                shapes=polygonShape(box=(1, self.world_height)),
+                userData=groundColor,
+            )
+        return self.world
+
 
     @abc.abstractmethod
     def reset(self):

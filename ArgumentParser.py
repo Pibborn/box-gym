@@ -29,6 +29,7 @@ def create_argparser():
     parser.add_argument('--actions', type=int, default=1)
     parser.add_argument('--sides', type=int, default=2)
     parser.add_argument('--raw_pixels', action='store_true')
+    parser.add_argument('--use_own_render_function', action='store_true')
     # additional basketball settings
     parser.add_argument('--random_density', action='store_true')  # equivalent to --random_densities flag
     parser.add_argument('--random_ball_size', action='store_true')  # equivalent to --random_boxsize flag
@@ -37,9 +38,13 @@ def create_argparser():
     parser.add_argument('--walls', type=int, default=0)
     # additional orbit settings
     parser.add_argument('--random_planet_position', action='store_true')
-    parser.add_argument('--random_gravity', action='store_true')
+    # parser.add_argument('--random_gravity', action='store_true')
     parser.add_argument('--random_satellite_size', action='store_true')
     parser.add_argument('--random_satellite_position', action='store_true')
     parser.add_argument('--random_satellite_density', action='store_true')
+    # additional free fall settings
+    parser.add_argument('--random_gravity', action='store_true')
+    parser.add_argument('--random_ball_height', action='store_true')
+    parser.add_argument('--use_seconds', action='store_true')
     args = parser.parse_args()
     return args

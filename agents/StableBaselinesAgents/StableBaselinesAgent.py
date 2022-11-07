@@ -14,14 +14,15 @@ from stable_baselines3.common.vec_env import VecVideoRecorder
 from agents.TrackingCallback import TrackingCallback
 from stable_baselines3.common.evaluation import evaluate_policy
 
-from DataExtraction.Extraction import init_Scale, init_Basketball, init_Orbit
-from DataExtraction.Extraction import update_Scale_table, update_Basketball_table, update_Orbit_table
+from DataExtraction.Extraction import init_Scale, init_Basketball, init_Orbit, init_FreeFall
+from DataExtraction.Extraction import update_Scale_table, update_Basketball_table, update_Orbit_table, update_FreeFall_table
 from DataExtraction.WandB import wandbCSVTracking
 from agents.AgentInterface import Agent
 
 SCALE = 0
 BASKETBALL = 1
 ORBIT = 2
+FREEFALL = 3
 
 class StableBaselinesAgent(Agent):
     def __init__(self, input_dim, output_dim, policy='MlpPolicy'):
@@ -35,10 +36,12 @@ class StableBaselinesAgent(Agent):
         pass
 
     def evaluate(self, env: gym.Env):
-        state = env.reset()  # torch.tensor(env.reset())
+        #state = env.env_method("resetState")  # torch.tensor(env.reset())
+        state = env.reset()
         R = 0  # return (sum of rewards)
         t = 0  # time step
         done = False
+        #print(state)
         while not done:
             action, states = self.agent.predict(state, deterministic=True)
             """if env.actions == 2:   # todo: fix
@@ -77,8 +80,10 @@ class StableBaselinesAgent(Agent):
         if type(test_env.observation_space) == gym.spaces.Dict:
             test_env.observation_space = self.convert_observation_space(test_env.observation_space, order=train_env.order)
 
-        train_env = DummyVecEnv([lambda: train_env])
-        test_env = DummyVecEnv([lambda: test_env])
+        # train_env = DummyVecEnv([lambda: train_env])
+        # test_env = DummyVecEnv([lambda: test_env])
+        # !!!
+
         # train_env = VecNormalize(train_env, norm_obs=True, norm_reward=config.reward_norm)
         # test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
         # train_env = VecVideoRecorder(train_env, 'videos', record_video_trigger=lambda x: x % PRINT_EVERY == 0, video_length=200) # todo: Video
@@ -94,8 +99,8 @@ class StableBaselinesAgent(Agent):
         self.agent = self.create_model(train_env, verbose=verbose, use_sde=sde)
         if not config.envname.lower() == "basketball":
             self.agent.learn(MAX_EPISODES, log_interval=PRINT_EVERY, eval_env=test_env, eval_freq=PRINT_EVERY,
-                             callback=[wandb_callback, train_success_callback, test_success_callback],  # todo: fix for Basketball
-                             # callback=wandb_callback,
+                             # callback=[wandb_callback, train_success_callback, test_success_callback],  # todo: fix for Basketball
+                             callback=wandb_callback,
                              eval_log_path='agents/temp')
         else:
             self.agent.learn(MAX_EPISODES, log_interval=PRINT_EVERY, eval_env=test_env, eval_freq=PRINT_EVERY,
@@ -153,6 +158,9 @@ class StableBaselinesAgent(Agent):
         elif config.envname.lower() == "orbit":
             mode = 2
             df = init_Orbit()  # todo
+        elif config.envname.lower() == "freefall":
+            mode = 3
+            df = init_FreeFall()
         else:
             raise NotImplementedError()
 
@@ -164,8 +172,9 @@ class StableBaselinesAgent(Agent):
             test_env.observation_space = self.convert_observation_space(test_env.observation_space)
 
         # convert type to DummyVecEnv if not already done
-        if type(test_env) != DummyVecEnv and type(test_env) != VecNormalize:
-            test_env = DummyVecEnv([lambda: test_env])
+        if mode != FREEFALL:
+            if type(test_env) != DummyVecEnv and type(test_env) != VecNormalize:
+                test_env = DummyVecEnv([lambda: test_env])
         # test_env = VecNormalize(test_env, norm_obs=True, norm_reward=config.reward_norm)
         """video_length = 480 # todo: turn on video recording
         test_env = VecVideoRecorder(test_env, "videos/",
@@ -174,21 +183,34 @@ class StableBaselinesAgent(Agent):
 
         test_env.reset()"""
 
+        #todo: delete
+        MAX_EPISODES = 200
         for episode in range(1, MAX_EPISODES + 1):
             test_reward, state, action = self.evaluate(env=test_env)
-            start_position_x, start_position_y = state[0][0], state[0][1]
-            state = state[0]
-            if test_reward >= 1:
-                if mode == SCALE:
-                    df = update_Scale_table(df=df, state=state, config=config, box_number=box_number,
-                                            index=test_matches)
-                elif mode == BASKETBALL:
-                    df = update_Basketball_table(df=df, state=state, env=test_env, config=config,
-                                                 start_position_x=start_position_x, start_position_y=start_position_y,
-                                                 action=action, index=test_matches)
-                elif mode == ORBIT:
-                    df = update_Orbit_table(df=df)  # todo
+            #print(state)
+            # state = test_env.env_method("resetState")
+            if mode == FREEFALL:
+                #max_time = test_env.get_attr("max_time")
+                #start_height = test_env.get_attr("starting_distance")
+                max_time = test_env.max_time
+                starting_distance = test_env.starting_distance
+                df = update_FreeFall_table(df=df, state=state, env=test_env, config=config, max_time=max_time, action=action, start_distance=starting_distance, index=test_matches)
                 test_matches += 1
+            else:
+                state = state[0]
+                start_position_x, start_position_y = state[0], state[1]
+                if test_reward > 10:
+                # if test_reward >= 1:
+                    if mode == SCALE:
+                        df = update_Scale_table(df=df, state=state, env=test_env, config=config, box_number=box_number,
+                                                index=test_matches, action=action)
+                    elif mode == BASKETBALL:
+                        df = update_Basketball_table(df=df, state=state, env=test_env, config=config,
+                                                     start_position_x=start_position_x, start_position_y=start_position_y,
+                                                     action=action, index=test_matches)
+                    else:
+                        pass
+                    test_matches += 1
             test_rewards.append(test_reward)
             mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
             wandb.log({'test_rewards': mean_test_rewards})
@@ -198,9 +220,10 @@ class StableBaselinesAgent(Agent):
             """if episode % PRINT_EVERY == 0:
                 print(f'| Episode: {episode:3} | Mean Test Rewards: {mean_test_rewards:5.1f} |')
                 print(self.agent.get_statistics())"""
-            if mean_test_rewards >= REWARD_THRESHOLD:
-                print(f'Reached reward threshold in {episode} episodes')
-                break
+            # todo: fix
+            #if mean_test_rewards >= REWARD_THRESHOLD:
+            #    print(f'Reached reward threshold in {episode} episodes')
+            #    break
         print(
             f"Success rate of test episodes: {test_matches}/{MAX_EPISODES}={(test_matches / MAX_EPISODES * 100):,.2f}%")
         test_success_rate = test_matches / MAX_EPISODES

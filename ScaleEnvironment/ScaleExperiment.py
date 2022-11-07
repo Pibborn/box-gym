@@ -491,7 +491,7 @@ class ScaleExperiment(Framework, gym.Env):
                 break
         if not done:
             done = True
-            self.reset()
+            #self.reset()
         return self.state, reward, done, info
 
     def internal_step(self, action=None):
@@ -526,8 +526,8 @@ class ScaleExperiment(Framework, gym.Env):
         hz = 60.
         velocityIterations = 8
         positionIterations = 3
-        velocityIterations *= 2
-        positionIterations *= 2
+        velocityIterations *= 1
+        positionIterations *= 1
 
         if hz > 0.0:
             timeStep = 1.0 / hz

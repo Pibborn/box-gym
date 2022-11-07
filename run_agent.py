@@ -12,6 +12,7 @@ from agents.StableBaselinesAgents.HERAgent import HERAgent
 from environments.BasketballEnvironment import BasketballEnvironment
 # from environments.Pendulum import PendulumEnv, RGBArrayAsObservationWrapper
 from environments.OrbitEnvironment import OrbitEnvironment
+from environments.FreeFallEnvironment import FreeFallEnvironment
 from DataExtraction.WandB import wandbCSVTracking
 from ArgumentParser import create_argparser
 
@@ -41,11 +42,12 @@ install(show_locals=True)
 
 
 def create_envs(env_str='', seed=42, do_render=True, random_densities=False, random_boxsizes=False, normalize=False,
-                placed=1, actions=1, sides=2, raw_pixels=False, walls=0,
+                placed=1, actions=1, sides=2, raw_pixels=False, use_own_render_function=False, walls=0,
                 random_density=False, random_ball_size=False, random_basket=False, random_ball_position=False,
                 random_planet_position=False, random_gravity=False,
-                random_satellite_position=False, random_satellite_density=False, random_satellite_size=False):
-    allowed_strings = ['scale', 'scale_exp', 'scale_single', 'scale_draw', 'basketball', 'orbit']
+                random_satellite_position=False, random_satellite_density=False, random_satellite_size=False,
+                random_ball_height=True, use_seconds=False):
+    allowed_strings = ['scale', 'scale_exp', 'scale_single', 'scale_draw', 'basketball', 'orbit', 'freefall']
     if str(env_str).lower() not in allowed_strings:
         raise AssertionError(f"Environment name {env_str} not in allowed list {allowed_strings}")
     env_str = env_str.lower()
@@ -69,19 +71,28 @@ def create_envs(env_str='', seed=42, do_render=True, random_densities=False, ran
     elif env_str == 'scale_draw':
         train_env = ScaleDraw(rendering=do_render, random_densities=random_densities,
                               random_boxsizes=random_boxsizes, normalize=normalize,
-                              placed=placed, actions=actions, sides=sides, raw_pixels=raw_pixels)
-        test_env = ScaleDraw(rendering=do_render, random_densities=random_densities,
+                              placed=placed, actions=actions, sides=sides, raw_pixels=raw_pixels,
+                              use_own_render_function=use_own_render_function)
+        """test_env = ScaleDraw(rendering=do_render, random_densities=random_densities,
                              random_boxsizes=random_boxsizes, normalize=normalize,
-                             placed=placed, actions=actions, sides=sides, raw_pixels=raw_pixels)
+                             placed=placed, actions=actions, sides=sides, raw_pixels=raw_pixels,
+                             use_own_render_function=use_own_render_function)"""
+        test_env = ScaleDraw(rendering=True, random_densities=random_densities,
+                             random_boxsizes=random_boxsizes, normalize=normalize,
+                             placed=placed, actions=actions, sides=sides, raw_pixels=raw_pixels,
+                             use_own_render_function=use_own_render_function)
     elif env_str == 'basketball':
         train_env = BasketballEnvironment(rendering=do_render, normalize=normalize, raw_pixels=raw_pixels, walls=walls,
                                           random_density=random_density or random_densities,
                                           random_ball_size=random_ball_size or random_boxsizes,
-                                          random_basket=random_basket, random_ball_position=random_ball_position)
-        test_env = BasketballEnvironment(rendering=do_render, normalize=normalize, raw_pixels=raw_pixels, walls=walls,
+                                          random_basket=random_basket, random_ball_position=random_ball_position,
+                                          random_gravity=random_gravity)
+        #test_env = BasketballEnvironment(rendering=do_render, normalize=normalize, raw_pixels=raw_pixels, walls=walls,
+        test_env = BasketballEnvironment(rendering=True, normalize=normalize, raw_pixels=raw_pixels, walls=walls,
                                          random_density=random_density or random_densities,
                                          random_ball_size=random_ball_size or random_boxsizes,
-                                         random_basket=random_basket, random_ball_position=random_ball_position)
+                                         random_basket=random_basket, random_ball_position=random_ball_position,
+                                         random_gravity=random_gravity)
     elif env_str == 'orbit':
         train_env = OrbitEnvironment(rendering=do_render, normalize=normalize, raw_pixels=raw_pixels,
                                      random_planet_position=random_planet_position, random_gravity=random_gravity,
@@ -93,6 +104,15 @@ def create_envs(env_str='', seed=42, do_render=True, random_densities=False, ran
                                     random_satellite_position=random_satellite_position,
                                     random_satellite_size=random_satellite_size,
                                     random_satellite_density=random_satellite_density)
+    elif env_str == 'freefall':
+        train_env = FreeFallEnvironment(rendering=do_render, normalize=normalize, raw_pixels=raw_pixels,
+                                        random_ball_size=random_ball_size, random_density=random_density,
+                                        random_gravity=random_gravity, random_ball_height=random_ball_height,
+                                        use_seconds=use_seconds)
+        test_env = FreeFallEnvironment(rendering=do_render, normalize=normalize, raw_pixels=raw_pixels,
+                                        random_ball_size=random_ball_size, random_density=random_density,
+                                        random_gravity=random_gravity, random_ball_height=random_ball_height,
+                                        use_seconds=use_seconds)
     else:
         train_env = GymEnv(env_str)
         train_env = train_env.create()
@@ -237,18 +257,22 @@ if __name__ == '__main__':
         train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.rendering,
                                           random_densities=args.random_densities, random_boxsizes=args.random_boxsizes,
                                           normalize=args.normalize, placed=args.placed, actions=args.actions,
-                                          sides=args.sides, raw_pixels=args.raw_pixels, walls=args.walls,
+                                          sides=args.sides, raw_pixels=args.raw_pixels,
+                                          use_own_render_function=args.use_own_render_function, walls=args.walls,
                                           random_density=args.random_density, random_ball_size=args.random_ball_size,
                                           random_basket=args.random_basket,
                                           random_ball_position=args.random_ball_position,
-                                          random_gravity=args.random_gravity,
                                           random_satellite_position=args.random_satellite_position,
                                           random_planet_position=args.random_planet_position,
                                           random_satellite_size=args.random_satellite_size,
-                                          random_satellite_density=args.random_satellite_size)
+                                          random_satellite_density=args.random_satellite_size,
+                                          random_gravity=args.random_gravity,
+                                          random_ball_height=args.random_ball_height, use_seconds=args.use_seconds)
         input_dim, output_dim = get_env_dims(train_env)
 
-        agent, args.location = create_agent(agentname=args.agent, location=args.location, args=args)
+        # agent, args.location = create_agent(agentname=args.agent, location=args.location, args=args)
+        # todo: fix bug that it's saved wrong
+        agent, args.location = create_agent(agentname=args.agent, location=f"savedagents/models/{args.location}", args=args)
 
         test_rewards, df = agent.train_loop(train_env, test_env, args, verbose=1, only_testing=False)
         # save the trained agent
@@ -270,7 +294,17 @@ if __name__ == '__main__':
         train_env, test_env = create_envs(args.envname, seed=args.seed, do_render=args.rendering,
                                           random_densities=args.random_densities, random_boxsizes=args.random_boxsizes,
                                           normalize=args.normalize, placed=args.placed, actions=args.actions,
-                                          sides=args.sides)
+                                          sides=args.sides, raw_pixels=args.raw_pixels,
+                                          use_own_render_function=args.use_own_render_function, walls=args.walls,
+                                          random_density=args.random_density, random_ball_size=args.random_ball_size,
+                                          random_basket=args.random_basket,
+                                          random_ball_position=args.random_ball_position,
+                                          random_satellite_position=args.random_satellite_position,
+                                          random_planet_position=args.random_planet_position,
+                                          random_satellite_size=args.random_satellite_size,
+                                          random_satellite_density=args.random_satellite_size,
+                                          random_gravity=args.random_gravity,
+                                          random_ball_height=args.random_ball_height, use_seconds=args.use_seconds)
         input_dim, output_dim = get_env_dims(test_env)
 
         agent, args.location = create_agent(agentname=args.agent, location=args.location, args=args, test_env=test_env)

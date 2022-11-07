@@ -40,8 +40,8 @@ class Ball:
         position1 = self.ball.position[0]
         position2 = self.ball.position[1]
         angle = self.ball.angle
-        velocity = float(self.ball.angularVelocity)
-        return np.array([position1, position2, angle, velocity, self.radius, self.density])
+        velocity_x, velocity_y = float(self.ball.linearVelocity[0]), float(self.ball.linearVelocity[1])
+        return np.array([position1, position2, angle, velocity_x, velocity_y, self.radius, self.density])
 
     def get_world(self):
         return self.world
@@ -104,7 +104,7 @@ class Basket:
 
 class BasketballEnvironment(EnvironmentInterface):
     def __init__(self, seed=None, normalize=False, rendering=True, raw_pixels=False, random_ball_size=True,
-                 random_density=False, random_basket=False, random_ball_position=True, walls=0):
+                 random_density=False, random_basket=False, random_ball_position=True, random_gravity=False, walls=0):
         # should the size of the ball be fixed or random?
         self.random_ball_size = random_ball_size
         # should the density of the ball be fixed or random?
@@ -113,6 +113,8 @@ class BasketballEnvironment(EnvironmentInterface):
         self.random_basket = random_basket
         # start location of the basketball random or not?
         self.random_ball_position = random_ball_position
+        # should we have randomized gravity?
+        self.random_gravity = random_gravity
 
         # create Environment with interface
         super().__init__(seed=seed, normalize=normalize, rendering=rendering, raw_pixels=raw_pixels, walls=walls)
@@ -120,7 +122,13 @@ class BasketballEnvironment(EnvironmentInterface):
         self.ball = None
         self.basket = None
         self.touched_the_basket = False  # for reward determination later
+        self.touched_the_ground = False  # for reward determination later
         self.starting_position = None
+        self.last_linear_velocity = None
+        self.last_state = None
+        self.ball_x, self.ball_y = 0, 0
+        #self.time_passed = 0
+        #self.passed_time_steps = 0
 
         self.max_timesteps = 300
 
@@ -128,22 +136,23 @@ class BasketballEnvironment(EnvironmentInterface):
             pygame.display.set_caption('Basketball Environment')
 
         # action space and observation space
-        self.action_space = Box(low=np.array([0, 0]), high=np.array([15, 15] if not self.normalize else [1, 1]))
+        self.max_velocity = 15
+        self.action_space = Box(low=np.array([0, 0]), high=np.array([self.max_velocity, self.max_velocity] if not self.normalize else [1, 1]))
         # alternatively: use (total) velocity and angle to throw the ball
         # self.action_space = gym.spaces.Box(low=np.array([-np.pi, 0]), high=np.array([np.pi, 100]))
 
         # first, we have the ball information: x coordinate, y coordinate, angle, velocity, radius/size, density
         # then, we have the basket info: x coordinate, y coordinate (both of the center of the ring), radius of the ring
-        self.observation_space = Box(low=np.array([0, 0, - np.pi, -10, 0.5, 4, 0, 0, 0.5] if not self.normalize
+        """self.observation_space = Box(low=np.array([0, 0, - np.pi, -10, 0.5, 4, 0, 0, 0.5] if not self.normalize
                                                   else [0, 0, -1, -1, 0, 0, 0, 0, 0]),
                                      high=np.array([self.world_width, self.world_height, np.pi, 10, 1.5, 6,
                                                     self.world_width, self.world_height, 3] if not self.normalize
-                                                   else [1 for _ in range(9)]))
-        self.observation_space = Box(low=np.array([0, 0, - np.pi, -10, 0.5, 4, 0, 0, 0.5] if not self.normalize
-                                                  else [0, 0, -1, -1, 0, 0, 0, 0, 0]),
-                                     high=np.array([self.world_width, self.world_height, np.pi, 10, 1.5, 6,
-                                                    self.world_width, self.world_height, 3] if not self.normalize
-                                                   else [1 for _ in range(9)]))
+                                                   else [1 for _ in range(9)]))"""
+        self.observation_space = Box(low=np.array([0, 0, - np.pi, 0, 0, 0.5, 4, 0, 0, 0.5, 3, 0] if not self.normalize
+                                                  else [0, 0, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0]),
+                                     high=np.array([self.world_width, self.world_height, np.pi, self.max_velocity, self.max_velocity, 1.5, 6,
+                                                    self.world_width, self.world_height, 3, 20, self.max_timesteps] if not self.normalize
+                                                   else [1 for _ in range(12)]))
 
         self.reset()
 
@@ -151,12 +160,40 @@ class BasketballEnvironment(EnvironmentInterface):
         # idea: check, if box x coordinates in the range of the position of the basket
         # and if the ball is completely under the line
         # self.state = self.updateState()
-        ball_x, ball_y = self.ball.ball.position
+        last_position_x, last_position_y = self.ball_x, self.ball_y
+        self.ball_x, self.ball_y = self.ball.ball.position
 
-        if (self.basket.x - self.basket.radius <= ball_x - self.ball.radius
-                and self.basket.x + self.basket.radius >= ball_x + self.ball.radius
-                and self.basket.y >= ball_y + self.ball.radius
-                and self.basket.y - 2 * self.basket.radius <= ball_y - self.ball.radius):
+        #self.passed_time_steps += 1
+
+        # for extraction, we want only perfect basketball shots
+        """if len(self.ball.ball.contacts) > 0 and len(self.basket.basket.contacts) == 0:
+            self.touched_the_ground = True
+            return False
+
+        elif len(self.ball.ball.contacts) > 0 and len(self.basket.basket.contacts) > 0:
+            self.touched_the_basket = True
+            return False"""
+
+        if len(self.ball.ball.contacts) > 0:
+            if not self.touched_the_basket and not self.touched_the_ground:
+                self.last_state = self.old_state
+            if len(self.basket.basket.contacts) > 0:
+                self.touched_the_basket = True
+            else:
+                self.touched_the_ground = True
+
+        if ((self.basket.x - self.basket.radius <= self.ball_x - self.ball.radius
+                and self.basket.x + self.basket.radius >= self.ball_x + self.ball.radius
+                and self.basket.y >= self.ball_y + self.ball.radius
+                and self.basket.y - 2 * self.basket.radius <= self.ball_y - self.ball.radius)
+                and not self.touched_the_ground):
+            """# check if basked was touched before, but ball did not rise again
+            if self.touched_the_basket and last_position_y < self.ball_y:
+                return False
+            self.last_state = self.updateState()"""
+            #self.time_passed = self.passed_time_steps
+            self.last_linear_velocity = [self.ball.ball.linearVelocity[0], self.ball.ball.linearVelocity[1]]
+            #print(self.last_state, self.last_linear_velocity)
             return True
         return False
 
@@ -187,13 +224,15 @@ class BasketballEnvironment(EnvironmentInterface):
         distance_to_basket = self.basket.x - self.basket.width - self.basket.radius - self.starting_position[0]
         return_message = f"Success!\t " \
                          f"| Starting position: {[float(f'%.{decimal_places}f' % n) for n in self.starting_position]}\t" \
-                         f"| Distance: {f'%.{decimal_places}f' % distance_to_basket}\t  " \
-                         f"| Mass: {f'%.{decimal_places}f' % self.ball.ball.mass} "
+                         f"| Distance: {f'%.{decimal_places}f' % distance_to_basket}\t" \
+                         f"| Mass: {f'%.{decimal_places}f' % self.ball.ball.mass}\t" \
+                         f"| Gravity: {f'%.{decimal_places}f' % self.world.gravity[1]}\t" \
+                         f"| Time: {self.passed_time_steps}"
         return return_message
 
     def performAction(self, action):
         if self.normalize:
-            action = rescale_movement(np.array([[0, 0], [1, 1]]), action, np.array([[0, 0], [15, 15]]))
+            action = rescale_movement(np.array([[0, 0], [1, 1]]), action, np.array([[0, 0], [self.max_velocity, self.max_velocity]]))
         delta_x, delta_y = float(action[0]), float(action[1])
         x, y = self.ball.ball.position
         density = self.ball.density
@@ -208,9 +247,11 @@ class BasketballEnvironment(EnvironmentInterface):
     def updateState(self):
         if not (self.ball and self.basket):  # check if basket and ball exist in the world
             return None
-        self.state = np.concatenate((self.ball.get_state(), self.basket.get_state()))
+        self.state = np.concatenate((self.ball.get_state(), self.basket.get_state(),
+                                     np.array([abs(self.world.gravity[1]), self.passed_time_steps])))
         if self.normalize:
-            self.normalized_state = self.rescaleState(np.concatenate((self.ball.get_state(), self.basket.get_state())))
+            self.normalized_state = self.rescaleState(np.concatenate((self.ball.get_state(), self.basket.get_state(),
+                                                                      np.array([abs(self.world.gravity[1]), self.passed_time_steps]))))
         return self.state
 
     def rescaleState(self, state=None):
@@ -222,11 +263,11 @@ class BasketballEnvironment(EnvironmentInterface):
         else:
             self.normalized_state = rescale_movement(
                 # [self.observation_space.low, self.observation_space.high],
-                np.array([[0, 0, - np.pi, -10, 0.5, 4, 0, 0, 0.5],
-                          [self.world_width, self.world_height, np.pi, 10, 1.5, 6,
-                           self.world_width, self.world_height, 3]]),
+                np.array([[0, 0, - np.pi, 0, 0, 0.5, 4, 0, 0, 0.5, 3, 0],
+                          [self.world_width, self.world_height, np.pi, self.max_velocity, self.max_velocity, 1.5, 6,
+                           self.world_width, self.world_height, 3, 20, self.max_timesteps]]),
                 state,
-                np.array([np.array([0, 0, -1, -1, 0, 0, 0, 0, 0]), np.array([1 for _ in range(9)])]))
+                np.array([np.array([0, 0, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0]), np.array([1 for _ in range(12)])]))
         return self.normalized_state
 
     def reset(self):
@@ -242,13 +283,17 @@ class BasketballEnvironment(EnvironmentInterface):
             ball_x, ball_y = self.world_width * 0.4, self.world_height * 0.6
         ball_radius = self.np_random.uniform(0.5, 1.5) if self.random_ball_size else 1.0
         ball_density = self.np_random.uniform(4, 6) if self.random_density else 5.0
+
+        gravity = self.np_random.uniform(3, 20) if self.random_gravity else 9.80665
+        self.world = self.createWorld(walls=0, gravity=-gravity)
+
         self.ball = Ball(self.world, x=ball_x, y=ball_y, angle=0, velocity=0, radius=ball_radius, density=ball_density)
         self.world = self.ball.get_world()
 
         # reset the basket
         if self.random_basket:
             basket_y = self.np_random.uniform(0.2 * self.world_height, 0.8 * self.world_height)
-            basket_radius = self.np_random.uniform(ball_radius, 2 * ball_radius)
+            basket_radius = self.np_random.uniform(1.5 * ball_radius, 2 * ball_radius)
             basket_width = self.np_random.uniform(0.1, 1.0)
             basket_x = self.world_width - basket_width - basket_radius
         else:
@@ -259,5 +304,9 @@ class BasketballEnvironment(EnvironmentInterface):
 
         self.starting_position = (ball_x, ball_y)
         self.touched_the_basket = False
+        self.touched_the_ground = False
+        #self.time_passed = None
+        #self.passed_time_steps = 0
+
         self.state = self.updateState()
         return self.rescaleState() if self.normalize else self.state
